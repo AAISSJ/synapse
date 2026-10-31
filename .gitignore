@@ -1,0 +1,11 @@
+node_modules/
+.build/
+dist/
+outputs/
+.env*
+!.env.example
+.dev.vars*
+.sites-runtime/
+.wrangler/
+*.sqlite*
+playwright-report/

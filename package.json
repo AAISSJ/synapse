@@ -1,0 +1,28 @@
+{
+  "name": "synapse-knowledge-garden",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "kg": "cli/kg.mjs"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "node scripts/dev.mjs",
+    "test": "node --test --test-isolation=none tests/*.test.mjs cli/*.test.mjs",
+    "db:generate": "drizzle-kit generate",
+    "worker": "node cli/kg.mjs worker"
+  },
+  "dependencies": {
+    "@openai/codex-sdk": "^0.134.0",
+    "drizzle-orm": "^0.45.2",
+    "lucide-react": "^0.577.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.27.0",
+    "drizzle-kit": "^0.31.10",
+    "playwright-core": "^1.58.0"
+  }
+}
