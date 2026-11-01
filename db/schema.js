@@ -1,4 +1,5 @@
-import { sqliteTable, text, integer, real, primaryKey, uniqueIndex, index } from 'drizzle-orm/sqlite-core';
+import {sql} from 'drizzle-orm';
+import { sqliteTable, text, integer, real, primaryKey, uniqueIndex, index, check } from 'drizzle-orm/sqlite-core';
 
 export const users = sqliteTable('users', {
   id: text('id').primaryKey(), name: text('name').notNull(), createdAt: text('created_at').notNull(),
@@ -77,5 +78,19 @@ export const githubChallenges = sqliteTable('github_challenges', {
 });
 
 export const comparisons = sqliteTable('comparisons', {
+ decision:text('decision').notNull().default(''),
  id:text('id').primaryKey(),userId:text('user_id').notNull().references(()=>users.id),clientKey:text('client_key'),title:text('title').notNull(),description:text('description').notNull().default(''),conceptIds:text('concept_ids').notNull(),rows:text('rows').notNull(),createdAt:text('created_at').notNull(),updatedAt:text('updated_at').notNull(),
 },t=>[index('comparisons_user').on(t.userId),uniqueIndex('comparisons_client_key').on(t.userId,t.clientKey)]);
+
+export const inboxItems=sqliteTable('inbox_items',{
+ id:text('id').primaryKey(),userId:text('user_id').notNull().references(()=>users.id),title:text('title').notNull().default(''),content:text('content').notNull().default(''),url:text('url').notNull().default(''),status:text('status').notNull().default('pending'),entryId:text('entry_id'),createdAt:text('created_at').notNull(),updatedAt:text('updated_at').notNull(),
+},t=>[index('inbox_owner').on(t.userId,t.status)]);
+export const trashItems=sqliteTable('trash_items',{
+ id:text('id').primaryKey(),userId:text('user_id').notNull().references(()=>users.id),kind:text('kind').notNull(),title:text('title').notNull(),payload:text('payload').notNull(),createdAt:text('created_at').notNull(),
+},t=>[index('trash_owner').on(t.userId)]);
+export const reviewProgress=sqliteTable('review_progress',{
+ userId:text('user_id').notNull().references(()=>users.id),kind:text('kind').notNull(),refId:text('ref_id').notNull(),dueAt:text('due_at').notNull(),reviewedAt:text('reviewed_at').notNull(),intervalDays:integer('interval_days').notNull(),reviewCount:integer('review_count').notNull().default(0),
+},t=>[primaryKey({columns:[t.userId,t.kind,t.refId]})]);
+export const mutationChecks=sqliteTable('mutation_checks',{
+ id:text('id').primaryKey(),valid:integer('valid').notNull(),
+},t=>[check('mutation_valid',sql`${t.valid}=1`)]);

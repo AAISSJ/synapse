@@ -1,10 +1,12 @@
+import {routeWorkflows} from './workflows.js';
+import {trashStatement,conceptSnapshot} from './trash.js';
 import {routeComparisons,comparisonData} from './comparisons.js';
 import {sessionUser,githubConnection} from './github-auth.js';
 import {normalizeName} from '../shared/graph-plan.mjs';
 import {searchKnowledge,conceptSearchText} from '../shared/knowledge-search.mjs';
 import { routeAgent } from './agent.js';
 const PREFIX = '/api/v1';
-const MAX_BODY = 180_000;
+const MAX_BODY = 600_000;
 const LEASE_MS = 15 * 60 * 1000;
 const bool=(value,name)=>{if(typeof value!=='boolean')fail(400,'invalid_input',`${name}은 boolean이어야 합니다.`);return value?1:0;};
 const now = () => new Date().toISOString();
@@ -83,7 +85,7 @@ function entryData(row, conceptIds) {
 const safeJob = job => { const { user_id, lease_token, worker_id, ...rest } = job; return rest; };
 
 async function loadData(db, user) {
-  const [cs, es, links, rs, summaries, js, terms, comparisons] = await Promise.all([
+  const [cs, es, links, rs, summaries, js, terms, comparisons, inbox, reviews, trash] = await Promise.all([
     all(db, 'SELECT c.*, (SELECT COUNT(*) FROM entry_concepts ec WHERE ec.concept_id=c.id) AS entry_count FROM concepts c WHERE c.user_id=? ORDER BY c.created_at,c.id', user.id),
     all(db, 'SELECT * FROM entries WHERE user_id=? ORDER BY recorded_at DESC,id DESC', user.id),
     all(db, 'SELECT ec.* FROM entry_concepts ec JOIN entries e ON e.id=ec.entry_id WHERE e.user_id=?', user.id),
@@ -92,11 +94,14 @@ async function loadData(db, user) {
     all(db, 'SELECT * FROM jobs WHERE user_id=? ORDER BY created_at DESC LIMIT 100', user.id),
     all(db, 'SELECT * FROM concept_terms WHERE user_id=? ORDER BY created_at,id', user.id),
     all(db, 'SELECT * FROM comparisons WHERE user_id=? ORDER BY updated_at DESC,id', user.id),
+    all(db, 'SELECT * FROM inbox_items WHERE user_id=? ORDER BY created_at DESC,id', user.id),
+    all(db, 'SELECT kind,ref_id,due_at,reviewed_at,interval_days,review_count FROM review_progress WHERE user_id=?',user.id),
+    all(db, 'SELECT id,kind,title,created_at FROM trash_items WHERE user_id=? ORDER BY created_at DESC,id',user.id),
   ]);
   const summaryMap = new Map(summaries.map(s => [s.concept_id, { ...parse(s.payload, {}), revision: s.revision, generated_at: s.generated_at }]));
   const entryLinks = new Map();
   for (const link of links) entryLinks.set(link.entry_id, [...(entryLinks.get(link.entry_id) || []), link.concept_id]);
-  return { concepts: cs.map(c => conceptData(c, summaryMap.get(c.id) || null, terms.filter(t=>t.concept_id===c.id).map(t=>({id:t.id,term:t.term,definition:t.definition,aliases:parse(t.aliases,[]),source:t.source,hidden:!!t.hidden,highlighted:!!t.highlighted,concept_id:null,evidence_ids:[]})))), entries: es.map(e => entryData(e, entryLinks.get(e.id) || [])), relations: rs, comparisons:comparisons.map(comparisonData), jobs: js.map(safeJob), user: {name: user.name, auth_provider:user.auth_provider||'chatgpt', github_connected:await githubConnection(db,user.id)}, demo: !!(await first(db, 'SELECT demo_loaded FROM users WHERE id=?', user.id))?.demo_loaded };
+  return { concepts: cs.map(c => conceptData(c, summaryMap.get(c.id) || null, terms.filter(t=>t.concept_id===c.id).map(t=>({id:t.id,term:t.term,definition:t.definition,aliases:parse(t.aliases,[]),source:t.source,hidden:!!t.hidden,highlighted:!!t.highlighted,concept_id:null,evidence_ids:[]})))), entries: es.map(e => entryData(e, entryLinks.get(e.id) || [])), relations: rs, inbox:inbox.map(({user_id,...row})=>row), review_progress:reviews, trash, comparisons:comparisons.map(comparisonData), jobs: js.map(safeJob), user: {name: user.name, auth_provider:user.auth_provider||'chatgpt', github_connected:await githubConnection(db,user.id)}, demo: !!(await first(db, 'SELECT demo_loaded FROM users WHERE id=?', user.id))?.demo_loaded };
 }
 
 async function conceptEntries(db, userId, conceptId) {
@@ -273,10 +278,11 @@ export async function handleApi(request, env) {
     if (!env.DB) fail(503,'storage_unavailable','저장소 연결이 아직 준비되지 않았습니다.');
     const db = env.DB;
     const user = await authenticate(request, db);
+    const workflowResponse=await routeWorkflows(request,db,user,path,method,readBody,{loadData,createEntry,revisionStatements});if(workflowResponse)return workflowResponse;
     const comparisonResponse=await routeComparisons(request,db,user,path,method,readBody);if(comparisonResponse)return comparisonResponse;
     const agentResponse=await routeAgent(request,db,user,path,method,readBody);
     if(agentResponse)return agentResponse;
-    if(path==='/search'&&method==='GET'){const q=url.searchParams.get('q')||'';if(q.length>200)fail(400,'invalid_query','검색어는 200자 이내로 입력해주세요.');const data=await loadData(db,user);return response({results:searchKnowledge(data.concepts,q)});}
+    if(path==='/search'&&method==='GET'){const q=url.searchParams.get('q')||'';if(q.length>200)fail(400,'invalid_query','검색어는 200자 이내로 입력해주세요.');const data=await loadData(db,user);return response({results:searchKnowledge(data.concepts,q,100,{entries:data.entries,comparisons:data.comparisons,inbox:data.inbox})});}
     if (path === '/bootstrap' && method === 'GET') return response(await loadData(db,user));
     if (path === '/export' && method === 'GET') return response({format:'atlas-knowledge-export',version:1,exported_at:now(),...await loadData(db,user)},200,{'Content-Disposition':'attachment; filename="synapse-knowledge.json"'});
     if (path === '/settings' && method === 'GET') return response({tokens:await all(db,'SELECT id,name,prefix,created_at FROM api_tokens WHERE user_id=? ORDER BY created_at DESC',user.id),worker:{engine:'codex-sdk',requires_companion:true,lease_minutes:15}});
@@ -305,9 +311,10 @@ export async function handleApi(request, env) {
     if(match && method==='GET'){ const data=await loadData(db,user);const concept=data.concepts.find(c=>c.id===match[1]);if(!concept)fail(404,'not_found','개념을 찾을 수 없습니다.');return response(concept);}
     if(match&&method==='DELETE'){
       const concept=await ownedConcept(db,user.id,match[1]),timestamp=now();
+      const trash=trashStatement(db,user.id,'concept',concept.title,await conceptSnapshot(db,user.id,concept));
       const linked=(await all(db,'SELECT entry_id FROM entry_concepts WHERE concept_id=?',concept.id)).map(r=>r.entry_id);
       const entryIds=JSON.stringify(linked),path='$.'+JSON.stringify(concept.id);
-      await db.batch([
+      await db.batch([trash.statement,
         statement(db,'DELETE FROM entry_concepts WHERE concept_id=?',concept.id),
         statement(db,'DELETE FROM idempotency WHERE user_id=? AND entry_id IN (SELECT value FROM json_each(?)) AND NOT EXISTS (SELECT 1 FROM entry_concepts ec WHERE ec.entry_id=idempotency.entry_id)',user.id,entryIds),
         statement(db,'DELETE FROM entries WHERE user_id=? AND id IN (SELECT value FROM json_each(?)) AND NOT EXISTS (SELECT 1 FROM entry_concepts ec WHERE ec.entry_id=entries.id)',user.id,entryIds),
@@ -319,7 +326,7 @@ export async function handleApi(request, env) {
         statement(db,"UPDATE comparisons SET concept_ids=(SELECT json_group_array(value) FROM json_each(comparisons.concept_ids) WHERE value<>?),rows=(SELECT json_group_array(json_set(value,'$.cells',json_remove(json_extract(value,'$.cells'),?))) FROM json_each(comparisons.rows)),updated_at=CASE WHEN updated_at>=? THEN strftime('%Y-%m-%dT%H:%M:%fZ',updated_at,'+0.001 seconds') ELSE ? END WHERE user_id=? AND EXISTS (SELECT 1 FROM json_each(comparisons.concept_ids) WHERE value=?)",concept.id,path,timestamp,timestamp,user.id,concept.id),
         statement(db,'DELETE FROM concepts WHERE id=? AND user_id=?',concept.id,user.id),
       ]);
-      return response({deleted:true});
+      return response({deleted:true,trash_id:trash.id});
     }
     if(match && method==='PATCH'){
       const current=await ownedConcept(db,user.id,match[1]);const body=await readBody(request);
@@ -347,7 +354,7 @@ export async function handleApi(request, env) {
       await ownedConcept(db,user.id,match[1]);
       const current=await first(db,'SELECT * FROM concept_terms WHERE id=? AND concept_id=? AND user_id=?',match[2],match[1],user.id);
       if(!current)fail(404,'not_found','용어를 찾을 수 없습니다.');
-      if(method==='DELETE'){await statement(db,"UPDATE concept_terms SET hidden=1,source='manual',updated_at=? WHERE id=? AND user_id=?",now(),current.id,user.id).run();return response({deleted:true});}
+      if(method==='DELETE'){if(current.hidden)fail(404,'not_found','이미 삭제된 용어입니다.');const trash=trashStatement(db,user.id,'term',current.term,{term:current});await db.batch([trash.statement,statement(db,"UPDATE concept_terms SET hidden=1,source='manual',updated_at=? WHERE id=? AND user_id=?",now(),current.id,user.id)]);return response({deleted:true,trash_id:trash.id});}
       const body=await readBody(request),term=text(body.term??current.term,'term',200),definition=text(body.definition??current.definition,'definition',2000);
       const highlighted=body.highlighted===undefined?current.highlighted:bool(body.highlighted,'highlighted');
       const aliases=stringList(body.aliases??parse(current.aliases,[]),'aliases',15);
@@ -363,8 +370,9 @@ export async function handleApi(request, env) {
     if(match&&method==='POST'){
       await ownedConcept(db,user.id,match[1]);const body=await readBody(request);const term=text(body.term,'term',200),definition=text(body.definition,'definition',2000),aliases=stringList(body.aliases??[],'aliases',15),timestamp=now();const names=new Set([term,...aliases].map(normalizeName));const existing=(await all(db,'SELECT * FROM concept_terms WHERE concept_id=? AND user_id=?',match[1],user.id)).find(t=>[t.term,...parse(t.aliases,[])].some(n=>names.has(normalizeName(n))));const nameKey=existing?.name_key||normalizeName(term);
       const hidden=body.hidden===undefined?0:bool(body.hidden,'hidden'),highlighted=body.highlighted===undefined?(existing?.highlighted||0):bool(body.highlighted,'highlighted');
-      await statement(db,"INSERT INTO concept_terms (id,user_id,concept_id,name_key,term,definition,aliases,source,created_at,updated_at,hidden,highlighted) VALUES (?,?,?,?,?,?,?,'manual',?,?,?,?) ON CONFLICT(concept_id,name_key) DO UPDATE SET term=excluded.term,definition=excluded.definition,aliases=excluded.aliases,hidden=excluded.hidden,highlighted=excluded.highlighted,source='manual',updated_at=excluded.updated_at",id('term'),user.id,match[1],nameKey,term,definition,JSON.stringify(aliases),timestamp,timestamp,hidden,highlighted).run();
-      const t=await first(db,'SELECT * FROM concept_terms WHERE concept_id=? AND name_key=? AND user_id=?',match[1],nameKey,user.id);return response({id:t.id,term:t.term,definition:t.definition,aliases:parse(t.aliases,[]),source:t.source,hidden:!!t.hidden,highlighted:!!t.highlighted,concept_id:null,evidence_ids:[]},201);
+      const termId=existing?.id||id('term'),trash=hidden?trashStatement(db,user.id,'term',term,{term:{id:termId,user_id:user.id,concept_id:match[1],name_key:nameKey,term,definition,aliases:JSON.stringify(aliases),source:'manual',created_at:existing?.created_at||timestamp,updated_at:timestamp,hidden:0,highlighted}}):null;
+      await db.batch([...(trash?[trash.statement]:[]),statement(db,"INSERT INTO concept_terms (id,user_id,concept_id,name_key,term,definition,aliases,source,created_at,updated_at,hidden,highlighted) VALUES (?,?,?,?,?,?,?,'manual',?,?,?,?) ON CONFLICT(concept_id,name_key) DO UPDATE SET term=excluded.term,definition=excluded.definition,aliases=excluded.aliases,hidden=excluded.hidden,highlighted=excluded.highlighted,source='manual',updated_at=excluded.updated_at",termId,user.id,match[1],nameKey,term,definition,JSON.stringify(aliases),timestamp,timestamp,hidden,highlighted)]);
+      const t=await first(db,'SELECT * FROM concept_terms WHERE concept_id=? AND name_key=? AND user_id=?',match[1],nameKey,user.id);return response({id:t.id,term:t.term,definition:t.definition,aliases:parse(t.aliases,[]),source:t.source,hidden:!!t.hidden,highlighted:!!t.highlighted,concept_id:null,evidence_ids:[],...(trash?{trash_id:trash.id}:{})},201);
     }
     match=path.match(/^\/concepts\/([^/]+)\/entries$/);
     if(match&&method==='GET'){await ownedConcept(db,user.id,match[1]);return response({entries:await conceptEntries(db,user.id,match[1])});}
@@ -372,16 +380,17 @@ export async function handleApi(request, env) {
     if(match&&method==='POST'){await readBody(request);const job=await enqueue(db,user.id,match[1]);return response({job:safeJob(job)},202);}
     match=path.match(/^\/entries\/([^/]+)$/);
     if(match&&method==='DELETE'){
-      const entry=await first(db,'SELECT id FROM entries WHERE id=? AND user_id=?',match[1],user.id);if(!entry)fail(404,'not_found','기록을 찾을 수 없습니다.');
+      const entry=await first(db,'SELECT * FROM entries WHERE id=? AND user_id=?',match[1],user.id);if(!entry)fail(404,'not_found','기록을 찾을 수 없습니다.');
       const concepts=(await all(db,'SELECT concept_id FROM entry_concepts WHERE entry_id=?',entry.id)).map(r=>r.concept_id);
-      await db.batch([
+      const trash=trashStatement(db,user.id,'entry',entry.title||'제목 없는 기록',{entry,links:concepts.map(concept_id=>({entry_id:entry.id,concept_id})),idempotency:await all(db,'SELECT * FROM idempotency WHERE user_id=? AND entry_id=?',user.id,entry.id)});
+      await db.batch([trash.statement,
         statement(db,'DELETE FROM entry_concepts WHERE entry_id=?',entry.id),
         statement(db,'DELETE FROM idempotency WHERE user_id=? AND entry_id=?',user.id,entry.id),
         statement(db,'DELETE FROM entries WHERE id=? AND user_id=?',entry.id,user.id),
         ...revisionStatements(db,user.id,concepts,now()),
         ...concepts.map(c=>statement(db,'DELETE FROM summary_revisions WHERE concept_id=? AND user_id=?',c,user.id)),
         ...concepts.map(c=>statement(db,"UPDATE jobs SET status='superseded' WHERE concept_id=? AND user_id=? AND status='pending' AND NOT EXISTS (SELECT 1 FROM entry_concepts WHERE concept_id=?)",c,user.id,c)),
-      ]);return response({deleted:true});
+      ]);return response({deleted:true,trash_id:trash.id});
     }
     if(match&&method==='PATCH')return await updateEntry(request,db,user,match[1],await readBody(request));
     if(path==='/entries'&&method==='POST')return await createEntry(request,db,user,await readBody(request));
@@ -412,7 +421,7 @@ function openapi(origin) {
   const object = (properties, required = []) => ({type:'object',properties,required,additionalProperties:false});
   const schemas = {
     NotesInput: object({content:{type:'string',maxLength:80000},expected_updated_at:{type:['string','null']}},['content']),
-    ComparisonInput: object({title:{type:'string',maxLength:200},description:{type:'string',maxLength:2000},concept_ids:{type:'array',minItems:2,maxItems:6,items:string},rows:{type:'array',minItems:1,maxItems:30,items:object({id:string,label:string,highlighted:{type:'boolean'},cells:{type:'object',additionalProperties:{type:'string',maxLength:800}}},['label','cells'])},expected_updated_at:string,client_key:string},['title','concept_ids','rows']),
+    ComparisonInput: object({decision:{type:'string',maxLength:12000},title:{type:'string',maxLength:200},description:{type:'string',maxLength:2000},concept_ids:{type:'array',minItems:2,maxItems:6,items:string},rows:{type:'array',minItems:1,maxItems:30,items:object({id:string,label:string,highlighted:{type:'boolean'},cells:{type:'object',additionalProperties:{type:'string',maxLength:800}}},['label','cells'])},expected_updated_at:string,client_key:string},['title','concept_ids','rows']),
     ConceptInput: object({is_major:{type:'boolean'},title:{type:'string',minLength:1,maxLength:200},aliases:strings,category:{type:'string',maxLength:80},description:{type:'string',maxLength:10000}},['title']),
     ConceptUpdate: object({is_major:{type:'boolean'},title:string,aliases:strings,category:string,description:string,x:{type:'number'},y:{type:'number'}}),
     EntryInput: object({highlighted:{type:'boolean'},concept_ids:{type:'array',minItems:1,maxItems:20,items:string},content:{type:'string',maxLength:80000},title:{type:'string',maxLength:300},url:{type:'string',maxLength:4000,description:'http 또는 https 링크. 링크 본문은 자동 수집하지 않습니다.'},subject_period:{type:'string',maxLength:100,description:'내용이 다루는 역사적 시기. 저장 시각과 별개입니다.'},source:{type:'string',maxLength:100,default:'api'}},['concept_ids']),
@@ -430,6 +439,10 @@ function openapi(origin) {
     GraphEdge: object({source_key:string,target_key:string,type:{type:'string',enum:['parent_of','related','prerequisite']}},['source_key','target_key','type']),
     GraphPlan: object({message:string,nodes:{type:'array',minItems:1,maxItems:40,items:ref('GraphNode')},relations:{type:'array',maxItems:100,items:ref('GraphEdge')}},['message','nodes','relations']),
     AgentCompleteInput: object({lease_token:string,plan:ref('GraphPlan')},['lease_token','plan']),
+    InboxInput: object({title:{type:'string',maxLength:300},content:{type:'string',maxLength:80000},url:{type:'string',maxLength:4000}}),
+    InboxFileInput: object({concept_ids:{type:'array',minItems:1,maxItems:20,items:string}},['concept_ids']),
+    TransferInput: object({target_id:string},['target_id']),
+    ReviewInput: object({kind:string,ref_id:string,rating:{type:'string',enum:['again','hard','good','easy']}},['kind','ref_id','rating']),
     Empty: object({}),
     Error: object({error:object({code:string,message:string},['code','message'])},['error']),
   };
@@ -450,7 +463,17 @@ function openapi(origin) {
       '/agent/requests/{id}/complete':{parameters:idParam,post:op('applyAgentGraph','검증한 노드와 관계를 한 번만 적용','AgentCompleteInput')},
       '/agent/requests/{id}/fail':{parameters:idParam,post:op('failAgentRequest','생성 실패 보고','JobFailInput')},
       '/agent/requests/{id}/retry':{parameters:idParam,post:op('retryAgentRequest','실패한 요청 재시도','Empty')},
-      '/search':{get:{...op('searchKnowledge','전체 노드와 내부 용어 검색'),parameters:[{name:'q',in:'query',required:true,schema:{type:'string',maxLength:200}}]}},
+      '/inbox':{get:op('listInbox','수집함 목록'),post:op('captureKnowledge','분류 없이 빠른 기록 저장','InboxInput',201)},
+      '/inbox/{id}':{parameters:idParam,get:op('getInboxItem','수집한 기록 조회'),patch:op('editInboxItem','수집한 기록 수정','InboxInput'),delete:op('trashInboxItem','수집한 기록을 휴지통으로 이동')},
+      '/inbox/{id}/file':{parameters:idParam,post:op('fileInboxItem','개념에 기록 정리 · 중복 저장 방지','InboxFileInput')},
+      '/trash':{get:op('listTrash','휴지통 목록')},
+      '/trash/{id}':{parameters:idParam,delete:op('purgeTrash','휴지통 항목 영구 삭제')},
+      '/trash/{id}/restore':{parameters:idParam,post:op('restoreTrash','휴지통 항목 복원','Empty')},
+      '/highlights':{get:op('getHighlights','강조한 문장·용어·기록·비교표 행 모아보기')},
+      '/reviews':{get:op('getReviews','복습 항목과 일정'),post:op('gradeReview','복습 결과와 다음 일정 저장','ReviewInput')},
+      '/concepts/{id}/merge':{parameters:idParam,post:op('mergeConcept','다른 개념으로 병합 · 원본 휴지통 보관','TransferInput')},
+      '/concepts/{id}/terms/{termId}/move':{parameters:[...idParam,{name:'termId',in:'path',required:true,schema:string}],post:op('moveTerm','다른 개념으로 용어 이동','TransferInput')},
+      '/search':{get:{...op('searchKnowledge','노드·용어·메모·비교표·수집함 통합 검색'),parameters:[{name:'q',in:'query',required:true,schema:{type:'string',maxLength:200}}]}},
       '/concepts/{id}/terms/{termId}':{parameters:[...idParam,{name:'termId',in:'path',required:true,schema:string}],delete:op('deleteConceptTerm','내부 용어 삭제 · 재생성 방지'),patch:op('updateConceptTerm','내부 용어 수정 · 이전 이름은 별칭으로 보존','TermInput')},
       '/entries/{id}':{parameters:idParam,delete:op('deleteEntry','기록 삭제 및 관련 요약 무효화'),patch:op('updateEntry','기록 수정 · 연결 개념의 요약 재등록','EntryUpdate')},
       '/concepts/{id}/notes':{parameters:idParam,patch:op('savePersonalNotes','노드별 내 정리 저장','NotesInput')},

@@ -7,9 +7,13 @@ export function collectTerms(concept){
  return [...map.values()].filter(t=>!t.hidden);
 }
 export function conceptSearchText(c){return[c.title,...(c.aliases||[]),c.category,c.description,c.personal_notes,...collectTerms(c).flatMap(t=>[t.term,...t.aliases,t.definition])].filter(Boolean).join(' ');}
-export function searchKnowledge(concepts,query,limit=50){
+export function searchKnowledge(concepts,query,limit=50,{entries=[],comparisons=[],inbox=[]}={}){
  const q=normalizeName(String(query||''));if(!q)return[];const results=[];
  const score=(title,aliases,description)=>{const name=normalizeName(title||''),other=(aliases||[]).map(normalizeName);if(name===q)return 0;if(other.includes(q))return 1;if(name.startsWith(q))return 2;if(name.includes(q)||other.some(n=>n.includes(q)))return 3;if(normalizeName(description||'').includes(q))return 5;return null;};
  for(const c of concepts){const rank=score(c.title,c.aliases,[c.description,c.category,c.personal_notes].join(' '));if(rank!==null)results.push({type:'concept',id:c.id,concept_id:c.id,concept_title:c.title,title:c.title,description:c.description||'',aliases:c.aliases||[],rank});for(const t of collectTerms(c)){const n=score(t.term,t.aliases,t.definition);if(n!==null)results.push({type:'term',id:t.id,concept_id:c.id,concept_title:c.title,title:t.term,description:t.definition||'',aliases:t.aliases,source:t.source,rank:n});}}
+ const snippet=(text)=>{const raw=String(text||''),words=String(query||'').trim().toLocaleLowerCase(),at=raw.toLocaleLowerCase().indexOf(words);return raw.slice(Math.max(0,at-40),Math.max(0,at-40)+180);};
+ for(const e of entries){const rank=score(e.title,[],e.content);if(rank!==null)results.push({type:'entry',id:e.id,concept_id:e.concept_ids?.[0],concept_ids:e.concept_ids,title:e.title||'제목 없는 기록',concept_title:(e.concept_ids||[]).map(id=>concepts.find(c=>c.id===id)?.title).filter(Boolean).join(' · '),description:snippet(e.content),aliases:[],rank:rank+1});}
+ for(const c of comparisons){const body=[c.description,c.decision,...c.rows.flatMap(r=>[r.label,...Object.values(r.cells)])].join(' '),rank=score(c.title,[],body);if(rank!==null)results.push({type:'comparison',id:c.id,concept_ids:c.concept_ids,title:c.title,concept_title:'비교표',description:snippet(body),aliases:[],rank:rank+1});}
+ for(const item of inbox){const rank=score(item.title,[],item.content+' '+item.url);if(rank!==null)results.push({type:'inbox',id:item.id,title:item.title||'수집한 기록',concept_title:'수집함',description:snippet(item.content||item.url),aliases:[],rank:rank+1});}
  return results.sort((a,b)=>a.rank-b.rank||(a.type==='concept'?-1:1)-(b.type==='concept'?-1:1)||a.title.localeCompare(b.title,'ko')).slice(0,limit).map(({rank,...rest})=>rest);
 }
