@@ -1,3 +1,4 @@
+import {sessionUser,githubConnection} from './github-auth.js';
 import {normalizeName} from '../shared/graph-plan.mjs';
 import {searchKnowledge,conceptSearchText} from '../shared/knowledge-search.mjs';
 import { routeAgent } from './agent.js';
@@ -48,13 +49,15 @@ async function authenticate(request, db) {
     if (!user) fail(401, 'unauthorized', 'API 토큰이 유효하지 않거나 폐기되었습니다.');
     return { ...user, bearer: true };
   }
-  const userId = request.headers.get('oai-authenticated-user-id');
-  if (!userId) fail(401, 'authentication_required', 'ChatGPT로 로그인하거나 API 토큰을 사용해주세요.');
+  const session = await sessionUser(request, db);
+  const userId = session?.id || request.headers.get('oai-authenticated-user-id');
+  if (!userId) fail(401, 'authentication_required', 'GitHub 또는 ChatGPT로 로그인하거나 API 토큰을 사용해주세요.');
   if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method)) {
     const origin = request.headers.get('Origin');
     const fetchSite = request.headers.get('Sec-Fetch-Site');
     if ((origin && origin !== new URL(request.url).origin) || fetchSite === 'cross-site') fail(403, 'cross_origin_request', '다른 사이트에서 보낸 요청은 허용되지 않습니다.');
   }
+  if(session) return {...session,bearer:false};
   let name = request.headers.get('oai-authenticated-user-full-name') || request.headers.get('oai-authenticated-user-email') || '나의 지식';
   if (request.headers.get('oai-authenticated-user-full-name-encoding') === 'percent-encoded-utf-8') { try { name = decodeURIComponent(name); } catch {} }
   await statement(db, 'INSERT INTO users (id,name,created_at,demo_loaded) VALUES (?,?,?,0) ON CONFLICT(id) DO UPDATE SET name=excluded.name', userId, name.slice(0, 300), now()).run();
@@ -90,7 +93,7 @@ async function loadData(db, user) {
   const summaryMap = new Map(summaries.map(s => [s.concept_id, { ...parse(s.payload, {}), revision: s.revision, generated_at: s.generated_at }]));
   const entryLinks = new Map();
   for (const link of links) entryLinks.set(link.entry_id, [...(entryLinks.get(link.entry_id) || []), link.concept_id]);
-  return { concepts: cs.map(c => conceptData(c, summaryMap.get(c.id) || null, terms.filter(t=>t.concept_id===c.id).map(t=>({id:t.id,term:t.term,definition:t.definition,aliases:parse(t.aliases,[]),source:t.source,concept_id:null,evidence_ids:[]})))), entries: es.map(e => entryData(e, entryLinks.get(e.id) || [])), relations: rs, jobs: js.map(safeJob), user: {name: user.name}, demo: !!(await first(db, 'SELECT demo_loaded FROM users WHERE id=?', user.id))?.demo_loaded };
+  return { concepts: cs.map(c => conceptData(c, summaryMap.get(c.id) || null, terms.filter(t=>t.concept_id===c.id).map(t=>({id:t.id,term:t.term,definition:t.definition,aliases:parse(t.aliases,[]),source:t.source,concept_id:null,evidence_ids:[]})))), entries: es.map(e => entryData(e, entryLinks.get(e.id) || [])), relations: rs, jobs: js.map(safeJob), user: {name: user.name, auth_provider:user.auth_provider||'chatgpt', github_connected:await githubConnection(db,user.id)}, demo: !!(await first(db, 'SELECT demo_loaded FROM users WHERE id=?', user.id))?.demo_loaded };
 }
 
 async function conceptEntries(db, userId, conceptId) {

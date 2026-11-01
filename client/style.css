@@ -667,3 +667,31 @@ button.term-title:hover { color: #326728; text-decoration: underline; }
 @media(max-width:1100px){ .knowledge-search { width:160px; } }
 @media(max-width:900px) and (min-width:761px){ .knowledge-search { width:130px; } }
 @media(max-width:760px){ .knowledge-search { width:auto; flex:1; } .search-results { left:0; right:auto; width:calc(100vw - 36px); } .search-result-list { max-height:310px; } }
+
+/* Panel widths are device-local preferences; phone panels keep their full-screen layout. */
+.app { position:relative; }
+.panel-resizer { position:absolute; top:0; bottom:0; width:10px; z-index:12; cursor:col-resize; touch-action:none; outline:none; display:flex; align-items:center; justify-content:center; }
+.panel-resizer.left { left:calc(var(--sidebar) - 5px); }
+.panel-resizer.right { left:calc(100% - var(--details) - 5px); }
+.panel-resizer span { width:3px; height:34px; border-radius:8px; background:#bbc8b3; transition:height .15s,background .15s; }
+.panel-resizer:hover, .panel-resizer:focus-visible, .panel-resizer.dragging { background:#82a76c26; }
+.panel-resizer:hover span,.panel-resizer:focus-visible span,.panel-resizer.dragging span { height:55px; background:#5c8045; }
+.resizing-panels,.resizing-panels * { cursor:col-resize!important; user-select:none!important; }
+.github-signin { background:#24292f; color:white; border-color:#24292f; margin-bottom:12px; }
+.github-signin:hover { background:#353d46; }
+.github-login { max-width:460px; }
+.github-login h2 { display:flex; gap:9px; align-items:center; }
+.github-instruction { font-size:12px; line-height:1.8; margin:12px 0; color:#65715e; }
+.github-device-code { width:100%; border:1px solid #d7e0ce; border-radius:9px; background:#f5f8f1; padding:18px; display:flex; align-items:center; justify-content:center; gap:18px; color:#325329; }
+.github-device-code code { font-size:27px; letter-spacing:3px; user-select:all; }
+.github-wait { display:flex; align-items:center; justify-content:center; gap:8px; font-size:11px; line-height:1.8; margin:20px 0; color:#78866f; }
+@media (min-width:761px) and (max-width:1100px) {
+ .expanded-sidebar .sidebar { align-items:stretch; }
+ .expanded-sidebar .sidebar .hide-compact,.expanded-sidebar .sidebar .brand > div:not(.brand-mark),.expanded-sidebar .sidebar .brand-word,.expanded-sidebar .sidebar .brand-kicker,.expanded-sidebar .sidebar .nav-button > span,.expanded-sidebar .sidebar .category-button > span { display:initial; }
+ .expanded-sidebar .sidebar .brand-word,.expanded-sidebar .sidebar .brand-kicker { display:block; }
+ .expanded-sidebar .sidebar .nav-button,.expanded-sidebar .sidebar .category-button { width:100%; justify-content:flex-start; padding:0 9px; gap:8px; }
+ .expanded-sidebar .sidebar .profile { justify-content:flex-start; padding:17px 10px; }
+ .expanded-sidebar .sidebar .profile-text { min-width:0; }
+ .expanded-sidebar .sidebar .profile-text strong { overflow:hidden; text-overflow:ellipsis; }
+}
+@media(max-width:760px) { .panel-resizer { display:none; } }

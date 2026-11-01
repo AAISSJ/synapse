@@ -51,3 +51,17 @@ API는 `/api/v1/openapi.json`, 상태 확인은 `/health`입니다. 새 사용�
 독립적으로 학습할 기술은 노드로, 그 기술 안에서 설명할 구성 요소는 내부 용어로 정리합니다. 예를 들어 Kubernetes와 Docker는 별도 노드이며 Pod·Deployment·Namespace는 Kubernetes의 내부 용어입니다. 에이전트가 이 기준으로 분류하며 사용자가 명시적으로 독립 노드를 요청하면 그 요청을 우선합니다. 기존 작업자는 최신 CLI로 교체해 `node cli/kg.mjs worker`를 실행해야 새 용어 생성 규칙을 사용합니다.
 
 상단 검색은 전체 지도의 노드·내부 용어·최신 메모 요약의 용어와 별칭을 함께 찾습니다. 용어 검색 결과를 선택하면 소속 노드로 이동해 설명을 펼칩니다. 노드의 **용어 추가**에서 직접 정리할 수 있으며 AI는 직접 작성한 정의를 덮어쓰지 않습니다. API에서는 `GET /api/v1/search?q=Pod`, `POST /api/v1/concepts/:id/terms`를 제공합니다.
+
+## GitHub 로그인
+
+ChatGPT 로그인은 계속 사용할 수 있습니다. GitHub 로그인은 공개 사이트에서 별도의 기기 인증과 앱 세션을 사용하므로 ChatGPT 계정이 없어도 사용할 수 있습니다.
+
+1. GitHub Settings → Developer settings → OAuth Apps → New OAuth App에서 앱을 등록합니다. Homepage URL과 Authorization callback URL에 사이트 URL을 입력합니다. 기기 인증에서는 callback을 사용하지 않습니다.
+2. 앱 설정의 **Enable Device Flow**를 켭니다. `GITHUB_CLIENT_ID`를 Sites 런타임 환경변수로 설정하고 배포합니다. Client secret은 필요하지 않습니다. 저장소 권한도 요청하지 않습니다.
+3. 로그인 화면에서 **GitHub로 시작하기**를 누르고 표시된 코드를 GitHub에서 승인합니다. GitHub의 숫자 사용자 ID로 식별하므로 사용자 이름 변경에도 같은 지식을 사용합니다.
+
+**기존 기록을 유지하려면 먼저 ChatGPT로 로그인한 상태에서 좌측의 GitHub 계정 연결을 사용하세요.** 이후 GitHub만으로도 기존 공간에 들어올 수 있습니다. 먼저 별도 GitHub 공간을 만든 경우 두 공간을 자동 병합하지 않습니다. 이미 다른 공간에 연결된 GitHub 계정의 연결 변경은 거절합니다.
+
+GitHub access token은 사용자 확인 직후 버리고 저장하지 않습니다. 앱 세션은 Secure·HttpOnly·SameSite=Lax 쿠키를 사용하며 DB에는 토큰 해시만 저장합니다. 세션은 30일 후 만료되며 로그아웃하면 즉시 폐기됩니다. GitHub의 기기 인증용 코드는 승인 대기 동안만 서버 DB에 보관됩니다. `server/github-auth.js`와 인증 통합 테스트를 참고하세요.
+
+양쪽 사이드바 경계의 핸들을 드래그하거나 포커스 후 방향키로 너비를 조절합니다. Shift+방향키는 40px, 일반 방향키는 10px씩 조절하며 더블클릭하면 기본 너비로 돌아갑니다. 너비는 현재 브라우저에 저장하고 모바일에서는 기존 전체 화면 패널을 유지합니다.

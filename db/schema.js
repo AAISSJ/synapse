@@ -61,3 +61,13 @@ export const agentRequests = sqliteTable('agent_requests', {
 export const conceptTerms = sqliteTable('concept_terms', {
  id:text('id').primaryKey(),userId:text('user_id').notNull().references(()=>users.id),conceptId:text('concept_id').notNull().references(()=>concepts.id),nameKey:text('name_key').notNull(),term:text('term').notNull(),definition:text('definition').notNull(),aliases:text('aliases').notNull().default('[]'),source:text('source').notNull().default('manual'),createdAt:text('created_at').notNull(),updatedAt:text('updated_at').notNull(),
 },t=>[uniqueIndex('concept_term_name').on(t.conceptId,t.nameKey),index('concept_terms_owner').on(t.userId)]);
+
+export const githubIdentities = sqliteTable('github_identities', {
+ githubId:text('github_id').primaryKey(),userId:text('user_id').notNull().references(()=>users.id),login:text('login').notNull(),createdAt:text('created_at').notNull(),
+},t=>[index('github_identities_user').on(t.userId)]);
+export const authSessions = sqliteTable('auth_sessions', {
+ tokenHash:text('token_hash').primaryKey(),userId:text('user_id').notNull().references(()=>users.id),expiresAt:integer('expires_at').notNull(),
+},t=>[index('auth_sessions_expiry').on(t.expiresAt)]);
+export const githubChallenges = sqliteTable('github_challenges', {
+ tokenHash:text('token_hash').primaryKey(),deviceCode:text('device_code').notNull(),linkUserId:text('link_user_id').references(()=>users.id),expiresAt:integer('expires_at').notNull(),nextPollAt:integer('next_poll_at').notNull(),intervalSeconds:integer('interval_seconds').notNull(),
+});
