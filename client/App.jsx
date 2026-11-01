@@ -502,7 +502,6 @@ function SignIn() {
 }
 
 export default function App() {
-  const panels=usePanelWidths();
   const [data, setData] = useState({ concepts: [], relations: [], entries: [], jobs: [], user: null });
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -525,6 +524,7 @@ export default function App() {
   const searchRef = useRef(null);
   const categories = useMemo(() => [...new Set(data.concepts.map(c => c.category || '미분류'))], [data.concepts]);
   const selected = data.concepts.find(c => c.id === selectedId);
+  const panels=usePanelWidths(!selected&&!agentOpen);
   const peerInfo=useMemo(()=>hierarchyPeers(data.concepts,data.relations,selectedId),[data.concepts,data.relations,selectedId]);
   const preferredPeers=useMemo(()=>{const table=(data.comparisons||[]).find(c=>c.concept_ids.includes(selectedId)&&c.concept_ids.some(id=>peerInfo.peer_ids.includes(id)));return table?table.concept_ids.filter(id=>peerInfo.peer_ids.includes(id)):peerInfo.peer_ids;},[data.comparisons,selectedId,peerInfo]);
   const peerIds=peerChoice?.anchor===selectedId?peerChoice.ids.filter(id=>peerInfo.peer_ids.includes(id)):preferredPeers;

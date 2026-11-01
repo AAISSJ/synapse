@@ -1,16 +1,17 @@
 import React,{useEffect,useRef,useState} from 'react';
 const KEY='synapse.panel-widths.v1';
-export function usePanelWidths(){
- const [saved,setSaved]=useState(()=>{try{const p=JSON.parse(localStorage.getItem(KEY))||{};return {left:Number.isFinite(p.left)?p.left:null,right:Number.isFinite(p.right)?p.right:null};}catch{return {left:null,right:null};}});
+export function usePanelWidths(compact=false){
+ const [saved,setSaved]=useState(()=>{try{const p=JSON.parse(localStorage.getItem(KEY))||{};return {left:Number.isFinite(p.left)?p.left:null,right:Number.isFinite(p.right)?p.right:null,idleRight:Number.isFinite(p.idleRight)?p.idleRight:null};}catch{return {left:null,right:null,idleRight:null};}});
  const [viewport,setViewport]=useState(window.innerWidth);
  useEffect(()=>{const resize=()=>setViewport(window.innerWidth);window.addEventListener('resize',resize);return()=>window.removeEventListener('resize',resize);},[]);
  useEffect(()=>{try{localStorage.setItem(KEY,JSON.stringify(saved));}catch{}},[saved]);
  const desktop=viewport>760,minLeft=viewport>1100?180:64;
  const root=getComputedStyle(document.documentElement),baseLeft=parseFloat(root.getPropertyValue('--sidebar'))||208,baseRight=parseFloat(root.getPropertyValue('--details'))||390;
- const left=Math.round(Math.max(minLeft,Math.min(saved.left??baseLeft,360,viewport-280-260)));
- const right=Math.round(Math.max(280,Math.min(saved.right??baseRight,680,viewport-left-260)));
+ const minRight=compact?200:280,rightKey=compact?'idleRight':'right';
+ const left=Math.round(Math.max(minLeft,Math.min(saved.left??baseLeft,360,viewport-minRight-260)));
+ const right=Math.round(Math.max(minRight,Math.min(saved[rightKey]??(compact?240:baseRight),680,viewport-left-260)));
  const set=(side,value)=>setSaved(old=>({...old,[side]:value}));
- return {style:desktop?{'--sidebar':left+'px','--details':right+'px'}:{},expanded:desktop&&viewport<=1100&&left>=175,handle:side=>({side,value:side==='left'?left:right,min:side==='left'?minLeft:280,max:side==='left'?Math.min(360,viewport-right-260):Math.min(680,viewport-left-260),onChange:value=>set(side,value),onReset:()=>set(side,null)})};
+ return {style:desktop?{'--sidebar':left+'px','--details':right+'px'}:{},expanded:desktop&&viewport<=1100&&left>=175,handle:side=>({side,value:side==='left'?left:right,min:side==='left'?minLeft:minRight,max:side==='left'?Math.min(360,viewport-right-260):Math.min(680,viewport-left-260),onChange:value=>set(side==='right'?rightKey:side,value),onReset:()=>set(side==='right'?rightKey:side,null)})};
 }
 export function ResizeHandle({side,value,min,max,onChange,onReset}){
  const drag=useRef(null);const [active,setActive]=useState(false);
