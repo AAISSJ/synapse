@@ -1,3 +1,4 @@
+import {routeComparisons,comparisonData} from './comparisons.js';
 import {sessionUser,githubConnection} from './github-auth.js';
 import {normalizeName} from '../shared/graph-plan.mjs';
 import {searchKnowledge,conceptSearchText} from '../shared/knowledge-search.mjs';
@@ -82,7 +83,7 @@ function entryData(row, conceptIds) {
 const safeJob = job => { const { user_id, lease_token, worker_id, ...rest } = job; return rest; };
 
 async function loadData(db, user) {
-  const [cs, es, links, rs, summaries, js, terms] = await Promise.all([
+  const [cs, es, links, rs, summaries, js, terms, comparisons] = await Promise.all([
     all(db, 'SELECT c.*, (SELECT COUNT(*) FROM entry_concepts ec WHERE ec.concept_id=c.id) AS entry_count FROM concepts c WHERE c.user_id=? ORDER BY c.created_at,c.id', user.id),
     all(db, 'SELECT * FROM entries WHERE user_id=? ORDER BY recorded_at DESC,id DESC', user.id),
     all(db, 'SELECT ec.* FROM entry_concepts ec JOIN entries e ON e.id=ec.entry_id WHERE e.user_id=?', user.id),
@@ -90,11 +91,12 @@ async function loadData(db, user) {
     all(db, 'SELECT s.* FROM summary_revisions s WHERE s.user_id=? AND s.revision=(SELECT MAX(s2.revision) FROM summary_revisions s2 WHERE s2.concept_id=s.concept_id)', user.id),
     all(db, 'SELECT * FROM jobs WHERE user_id=? ORDER BY created_at DESC LIMIT 100', user.id),
     all(db, 'SELECT * FROM concept_terms WHERE user_id=? ORDER BY created_at,id', user.id),
+    all(db, 'SELECT * FROM comparisons WHERE user_id=? ORDER BY updated_at DESC,id', user.id),
   ]);
   const summaryMap = new Map(summaries.map(s => [s.concept_id, { ...parse(s.payload, {}), revision: s.revision, generated_at: s.generated_at }]));
   const entryLinks = new Map();
   for (const link of links) entryLinks.set(link.entry_id, [...(entryLinks.get(link.entry_id) || []), link.concept_id]);
-  return { concepts: cs.map(c => conceptData(c, summaryMap.get(c.id) || null, terms.filter(t=>t.concept_id===c.id).map(t=>({id:t.id,term:t.term,definition:t.definition,aliases:parse(t.aliases,[]),source:t.source,hidden:!!t.hidden,highlighted:!!t.highlighted,concept_id:null,evidence_ids:[]})))), entries: es.map(e => entryData(e, entryLinks.get(e.id) || [])), relations: rs, jobs: js.map(safeJob), user: {name: user.name, auth_provider:user.auth_provider||'chatgpt', github_connected:await githubConnection(db,user.id)}, demo: !!(await first(db, 'SELECT demo_loaded FROM users WHERE id=?', user.id))?.demo_loaded };
+  return { concepts: cs.map(c => conceptData(c, summaryMap.get(c.id) || null, terms.filter(t=>t.concept_id===c.id).map(t=>({id:t.id,term:t.term,definition:t.definition,aliases:parse(t.aliases,[]),source:t.source,hidden:!!t.hidden,highlighted:!!t.highlighted,concept_id:null,evidence_ids:[]})))), entries: es.map(e => entryData(e, entryLinks.get(e.id) || [])), relations: rs, comparisons:comparisons.map(comparisonData), jobs: js.map(safeJob), user: {name: user.name, auth_provider:user.auth_provider||'chatgpt', github_connected:await githubConnection(db,user.id)}, demo: !!(await first(db, 'SELECT demo_loaded FROM users WHERE id=?', user.id))?.demo_loaded };
 }
 
 async function conceptEntries(db, userId, conceptId) {
@@ -271,6 +273,7 @@ export async function handleApi(request, env) {
     if (!env.DB) fail(503,'storage_unavailable','저장소 연결이 아직 준비되지 않았습니다.');
     const db = env.DB;
     const user = await authenticate(request, db);
+    const comparisonResponse=await routeComparisons(request,db,user,path,method,readBody);if(comparisonResponse)return comparisonResponse;
     const agentResponse=await routeAgent(request,db,user,path,method,readBody);
     if(agentResponse)return agentResponse;
     if(path==='/search'&&method==='GET'){const q=url.searchParams.get('q')||'';if(q.length>200)fail(400,'invalid_query','검색어는 200자 이내로 입력해주세요.');const data=await loadData(db,user);return response({results:searchKnowledge(data.concepts,q)});}
@@ -308,6 +311,16 @@ export async function handleApi(request, env) {
       const writes=[statement(db,'UPDATE concepts SET title=?,aliases=?,category=?,description=?,x=?,y=? WHERE id=? AND user_id=?',title,JSON.stringify(aliases),category,description,x,y,current.id,user.id)];
       if(metadataChanged&&await first(db,'SELECT entry_id FROM entry_concepts WHERE concept_id=? LIMIT 1',current.id))writes.push(...revisionStatements(db,user.id,[current.id],now()));
       await db.batch(writes);return response(conceptData(await ownedConcept(db,user.id,current.id)));
+    }
+    match=path.match(/^\/concepts\/([^/]+)\/notes$/);
+    if(match&&method==='PATCH'){
+      const concept=await ownedConcept(db,user.id,match[1]),body=await readBody(request),content=text(body.content,'content',80000,true);
+      if(body.expected_updated_at!==undefined&&body.expected_updated_at!==concept.personal_notes_updated_at)fail(409,'notes_conflict','다른 화면에서 수정됐어요. 내 정리를 다시 열어주세요.');
+      if(content===concept.personal_notes)return response({content,updated_at:concept.personal_notes_updated_at});
+      const stamp=new Date(Math.max(Date.now(),Date.parse(concept.personal_notes_updated_at||'')+1||0)).toISOString();
+      const result=await statement(db,'UPDATE concepts SET personal_notes=?,personal_notes_updated_at=? WHERE id=? AND user_id=? AND personal_notes_updated_at IS ?',content,stamp,concept.id,user.id,concept.personal_notes_updated_at).run();
+      if(!result.meta.changes)fail(409,'notes_conflict','다른 화면에서 수정됐어요. 내 정리를 다시 열어주세요.');
+      return response({content,updated_at:stamp});
     }
     match=path.match(/^\/concepts\/([^/]+)\/terms\/([^/]+)$/);
     if(match&&['PATCH','DELETE'].includes(method)){
@@ -378,6 +391,8 @@ function openapi(origin) {
   const strings = {type:'array',items:string};
   const object = (properties, required = []) => ({type:'object',properties,required,additionalProperties:false});
   const schemas = {
+    NotesInput: object({content:{type:'string',maxLength:80000},expected_updated_at:{type:['string','null']}},['content']),
+    ComparisonInput: object({title:{type:'string',maxLength:200},description:{type:'string',maxLength:2000},concept_ids:{type:'array',minItems:2,maxItems:6,items:string},rows:{type:'array',minItems:1,maxItems:30,items:object({id:string,label:string,highlighted:{type:'boolean'},cells:{type:'object',additionalProperties:{type:'string',maxLength:800}}},['label','cells'])},expected_updated_at:string,client_key:string},['title','concept_ids','rows']),
     ConceptInput: object({title:{type:'string',minLength:1,maxLength:200},aliases:strings,category:{type:'string',maxLength:80},description:{type:'string',maxLength:10000}},['title']),
     ConceptUpdate: object({title:string,aliases:strings,category:string,description:string,x:{type:'number'},y:{type:'number'}}),
     EntryInput: object({highlighted:{type:'boolean'},concept_ids:{type:'array',minItems:1,maxItems:20,items:string},content:{type:'string',maxLength:80000},title:{type:'string',maxLength:300},url:{type:'string',maxLength:4000,description:'http 또는 https 링크. 링크 본문은 자동 수집하지 않습니다.'},subject_period:{type:'string',maxLength:100,description:'내용이 다루는 역사적 시기. 저장 시각과 별개입니다.'},source:{type:'string',maxLength:100,default:'api'}},['concept_ids']),
@@ -418,6 +433,9 @@ function openapi(origin) {
       '/search':{get:{...op('searchKnowledge','전체 노드와 내부 용어 검색'),parameters:[{name:'q',in:'query',required:true,schema:{type:'string',maxLength:200}}]}},
       '/concepts/{id}/terms/{termId}':{parameters:[...idParam,{name:'termId',in:'path',required:true,schema:string}],delete:op('deleteConceptTerm','내부 용어 삭제 · 재생성 방지'),patch:op('updateConceptTerm','내부 용어 수정 · 이전 이름은 별칭으로 보존','TermInput')},
       '/entries/{id}':{parameters:idParam,delete:op('deleteEntry','기록 삭제 및 관련 요약 무효화'),patch:op('updateEntry','기록 수정 · 연결 개념의 요약 재등록','EntryUpdate')},
+      '/concepts/{id}/notes':{parameters:idParam,patch:op('savePersonalNotes','노드별 내 정리 저장','NotesInput')},
+      '/comparisons':{get:op('listComparisons','내 비교표 목록'),post:op('createComparison','비교표 저장','ComparisonInput',201)},
+      '/comparisons/{id}':{parameters:idParam,get:op('getComparison','비교표 조회'),patch:op('updateComparison','비교표 수정','ComparisonInput'),delete:op('deleteComparison','비교표 삭제')},
       '/concepts/{id}/terms':{parameters:idParam,post:op('saveConceptTerm','노드 내부 용어 작성·수정','TermInput',201)},
       '/bootstrap':{get:op('getBootstrap','전체 지도와 기록 조회')},
       '/concepts':{get:{...op('searchConcepts','개념과 별칭 검색'),parameters:[{name:'q',in:'query',schema:string}]},post:op('createConcept','개념 생성','ConceptInput',201)},

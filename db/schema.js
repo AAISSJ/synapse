@@ -5,6 +5,7 @@ export const users = sqliteTable('users', {
   demoLoaded: integer('demo_loaded').notNull().default(0),
 });
 export const concepts = sqliteTable('concepts', {
+  personalNotes:text('personal_notes').notNull().default(''),personalNotesUpdatedAt:text('personal_notes_updated_at'),
   id: text('id').primaryKey(), userId: text('user_id').notNull().references(() => users.id),
   title: text('title').notNull(), aliases: text('aliases').notNull().default('[]'),
   category: text('category').notNull().default('일반'), color: text('color').notNull().default('#2c7168'),
@@ -73,3 +74,7 @@ export const authSessions = sqliteTable('auth_sessions', {
 export const githubChallenges = sqliteTable('github_challenges', {
  tokenHash:text('token_hash').primaryKey(),deviceCode:text('device_code').notNull(),linkUserId:text('link_user_id').references(()=>users.id),expiresAt:integer('expires_at').notNull(),nextPollAt:integer('next_poll_at').notNull(),intervalSeconds:integer('interval_seconds').notNull(),
 });
+
+export const comparisons = sqliteTable('comparisons', {
+ id:text('id').primaryKey(),userId:text('user_id').notNull().references(()=>users.id),clientKey:text('client_key'),title:text('title').notNull(),description:text('description').notNull().default(''),conceptIds:text('concept_ids').notNull(),rows:text('rows').notNull(),createdAt:text('created_at').notNull(),updatedAt:text('updated_at').notNull(),
+},t=>[index('comparisons_user').on(t.userId),uniqueIndex('comparisons_client_key').on(t.userId,t.clientKey)]);
