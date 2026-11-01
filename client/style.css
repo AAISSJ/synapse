@@ -733,3 +733,4 @@ button.term-title:hover { color: #326728; text-decoration: underline; }
 .markdown-toolbar button { display:flex; align-items:center; gap:5px; padding:6px 8px; border:0; background:transparent; color:#75836a; border-radius:4px; font-size:10px; }.markdown-toolbar button.active { background:#e4edda; color:#41632e; }
 .markdown-preview { min-height:180px; max-height:45vh; overflow:auto; padding:14px; }.markdown-help { font-size:9px; color:#8b967e; padding:8px 11px; margin:0; border-top:1px solid #e7ecdf; }
 .term-definition .markdown { font-size:11px; }.entry-content.markdown { white-space:normal; }
+.recorded-automatically { display:flex; align-items:center; gap:6px; margin:12px 0 0; color:#7e8b71; font-size:10px; line-height:1.7; }
