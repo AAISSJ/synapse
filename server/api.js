@@ -74,7 +74,7 @@ async function ownedConcept(db, userId, conceptId) {
 
 function conceptData(row, summary = null, terms = []) {
   const { user_id, ...rest } = row;
-  return { ...rest, aliases: parse(row.aliases, []), summary, terms };
+  return { ...rest, is_major:!!row.is_major, aliases: parse(row.aliases, []), summary, terms };
 }
 function entryData(row, conceptIds) {
   const { user_id, ...rest } = row;
@@ -294,10 +294,11 @@ export async function handleApi(request, env) {
     }
     if (path === '/concepts' && method === 'POST') {
       const body=await readBody(request); const title=text(body.title,'title',200); const aliases=stringList(body.aliases??[],'aliases'); const category=text(body.category??'일반','category',80); const description=text(body.description,'description',10_000,true);
+      const isMajor=body.is_major===undefined?0:bool(body.is_major,'is_major');
       const count=(await first(db,'SELECT COUNT(*) AS n FROM concepts WHERE user_id=?',user.id)).n;
       const angle=count*2.39996;const radius=100+Math.sqrt(count)*95; const palette=['#2c7168','#a28b61','#7e83a6','#b78468'];
-      const concept={id:id('concept'),title,aliases,category,description,color:palette[count%palette.length],x:Math.round(500+Math.cos(angle)*radius),y:Math.round(350+Math.sin(angle)*radius),created_at:now(),revision:0,entry_count:0,summary:null};
-      await statement(db,'INSERT INTO concepts (id,user_id,title,aliases,category,description,color,x,y,created_at,revision) VALUES (?,?,?,?,?,?,?,?,?,?,0)',concept.id,user.id,title,JSON.stringify(aliases),category,description,concept.color,concept.x,concept.y,concept.created_at).run();
+      const concept={id:id('concept'),title,aliases,category,description,is_major:!!isMajor,color:palette[count%palette.length],x:Math.round(500+Math.cos(angle)*radius),y:Math.round(350+Math.sin(angle)*radius),created_at:now(),revision:0,entry_count:0,summary:null};
+      await statement(db,'INSERT INTO concepts (id,user_id,title,aliases,category,description,color,x,y,created_at,revision,is_major) VALUES (?,?,?,?,?,?,?,?,?,?,0,?)',concept.id,user.id,title,JSON.stringify(aliases),category,description,concept.color,concept.x,concept.y,concept.created_at,isMajor).run();
       return response(concept,201);
     }
     match=path.match(/^\/concepts\/([^/]+)$/);
@@ -307,8 +308,9 @@ export async function handleApi(request, env) {
       const x=body.x??current.x,y=body.y??current.y;
       if(typeof x!=='number'||!Number.isFinite(x)||Math.abs(x)>100000||typeof y!=='number'||!Number.isFinite(y)||Math.abs(y)>100000)fail(400,'invalid_position','노드 위치를 확인해주세요.');
       const title=text(body.title??current.title,'title',200);const aliases=stringList(body.aliases??parse(current.aliases,[]),'aliases');const category=text(body.category??current.category,'category',80);const description=text(body.description??current.description,'description',10_000,true);
+      const isMajor=body.is_major===undefined?current.is_major:bool(body.is_major,'is_major');
       const metadataChanged=title!==current.title||JSON.stringify(aliases)!==current.aliases||category!==current.category||description!==current.description;
-      const writes=[statement(db,'UPDATE concepts SET title=?,aliases=?,category=?,description=?,x=?,y=? WHERE id=? AND user_id=?',title,JSON.stringify(aliases),category,description,x,y,current.id,user.id)];
+      const writes=[statement(db,'UPDATE concepts SET title=?,aliases=?,category=?,description=?,x=?,y=?,is_major=? WHERE id=? AND user_id=?',title,JSON.stringify(aliases),category,description,x,y,isMajor,current.id,user.id)];
       if(metadataChanged&&await first(db,'SELECT entry_id FROM entry_concepts WHERE concept_id=? LIMIT 1',current.id))writes.push(...revisionStatements(db,user.id,[current.id],now()));
       await db.batch(writes);return response(conceptData(await ownedConcept(db,user.id,current.id)));
     }
@@ -393,8 +395,8 @@ function openapi(origin) {
   const schemas = {
     NotesInput: object({content:{type:'string',maxLength:80000},expected_updated_at:{type:['string','null']}},['content']),
     ComparisonInput: object({title:{type:'string',maxLength:200},description:{type:'string',maxLength:2000},concept_ids:{type:'array',minItems:2,maxItems:6,items:string},rows:{type:'array',minItems:1,maxItems:30,items:object({id:string,label:string,highlighted:{type:'boolean'},cells:{type:'object',additionalProperties:{type:'string',maxLength:800}}},['label','cells'])},expected_updated_at:string,client_key:string},['title','concept_ids','rows']),
-    ConceptInput: object({title:{type:'string',minLength:1,maxLength:200},aliases:strings,category:{type:'string',maxLength:80},description:{type:'string',maxLength:10000}},['title']),
-    ConceptUpdate: object({title:string,aliases:strings,category:string,description:string,x:{type:'number'},y:{type:'number'}}),
+    ConceptInput: object({is_major:{type:'boolean'},title:{type:'string',minLength:1,maxLength:200},aliases:strings,category:{type:'string',maxLength:80},description:{type:'string',maxLength:10000}},['title']),
+    ConceptUpdate: object({is_major:{type:'boolean'},title:string,aliases:strings,category:string,description:string,x:{type:'number'},y:{type:'number'}}),
     EntryInput: object({highlighted:{type:'boolean'},concept_ids:{type:'array',minItems:1,maxItems:20,items:string},content:{type:'string',maxLength:80000},title:{type:'string',maxLength:300},url:{type:'string',maxLength:4000,description:'http 또는 https 링크. 링크 본문은 자동 수집하지 않습니다.'},subject_period:{type:'string',maxLength:100,description:'내용이 다루는 역사적 시기. 저장 시각과 별개입니다.'},source:{type:'string',maxLength:100,default:'api'}},['concept_ids']),
     EntryUpdate: object({highlighted:{type:'boolean'},concept_ids:{type:'array',minItems:1,maxItems:20,items:string},content:{type:'string',maxLength:80000},title:{type:'string',maxLength:300},url:{type:'string',maxLength:4000},subject_period:{type:'string',maxLength:100}}),
     RelationInput: object({source_id:string,target_id:string,type:{type:'string',default:'관련됨'}},['source_id','target_id']),

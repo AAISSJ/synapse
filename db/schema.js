@@ -5,6 +5,7 @@ export const users = sqliteTable('users', {
   demoLoaded: integer('demo_loaded').notNull().default(0),
 });
 export const concepts = sqliteTable('concepts', {
+  isMajor:integer('is_major').notNull().default(0),
   personalNotes:text('personal_notes').notNull().default(''),personalNotesUpdatedAt:text('personal_notes_updated_at'),
   id: text('id').primaryKey(), userId: text('user_id').notNull().references(() => users.id),
   title: text('title').notNull(), aliases: text('aliases').notNull().default('[]'),

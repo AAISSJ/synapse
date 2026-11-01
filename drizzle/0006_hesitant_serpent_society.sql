@@ -1,0 +1,1 @@
+ALTER TABLE `concepts` ADD `is_major` integer DEFAULT 0 NOT NULL;

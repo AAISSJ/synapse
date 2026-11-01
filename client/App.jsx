@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
-  ArrowDownToLine, ArrowLeft, ArrowRight, ArrowUpRight, BookOpen, Check,
+  ArrowDownToLine, ArrowLeft, ArrowRight, ArrowUpToLine, ArrowUpRight, BookOpen, Check,
   ChevronDown, ChevronRight, CircleHelp, Clock3, Code2, Copy, ExternalLink,
   FileText, Focus, GitBranch, Hand, Layers3, Link2, Loader2, LogOut, MoreHorizontal, Move,
   Columns3, Github, Highlighter, Network, Pencil, Plus, RefreshCw, Search, Settings2, Sparkles, Sprout, Tags,
@@ -114,7 +114,8 @@ function Modal({ title, subtitle, children, close, wide = false, footer }) {
 }
 
 function Graph({ concepts, relations, hierarchyRelations=relations, selectedId, onSelect, onPositionChange, query, category, categories }) {
-  const roots=useMemo(()=>hierarchyRoots(hierarchyRelations),[hierarchyRelations]);
+  const hierarchyTop=useMemo(()=>hierarchyRoots(hierarchyRelations),[hierarchyRelations]);
+  const roots=useMemo(()=>new Set([...hierarchyTop,...concepts.filter(c=>c.is_major).map(c=>c.id)]),[hierarchyTop,concepts]);
   const svgRef = useRef(null);
   const gesture = useRef(null);
   const pointers = useRef(new Map());
@@ -301,13 +302,13 @@ function Graph({ concepts, relations, hierarchyRelations=relations, selectedId, 
           const isSelected = selectedId === c.id;
           const isNeighbor = neighbors.has(c.id);
           const visible = visibility(c);
-          const isRoot=roots.has(c.id),nodeHeight=isRoot?78:54;
+          const isMajor=!!c.is_major,isRoot=roots.has(c.id),nodeHeight=isRoot?78:54;
           const color = c.color || colorFor(c.category, categories);
           const textWidth = Math.min(isRoot?300:260, Math.max(isRoot?166:100, [...c.title].reduce((sum, ch) => sum + (/[^\x00-\x7F]/.test(ch) ? 14 : 7.5), 0) * (isRoot?1.12:1) + 57));
-          return <g key={c.id} transform={`translate(${p.x} ${p.y})`} className={`graph-node ${isRoot?'root-node':''} ${isSelected ? 'selected' : ''} ${!visible || selectedId && !isSelected && !isNeighbor ? 'muted' : ''}`} opacity={!visible ? .14 : selectedId && !isSelected && !isNeighbor ? .6 : 1} onPointerDown={e => begin(e, c.id)} role="button" tabIndex={visible ? 0 : -1} aria-label={`${c.title}${isRoot?', 최상위 개념':''}, ${c.entry_count || 0}개의 기록`} aria-pressed={isSelected} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(c.id===selectedId?null:c.id); } }}>
+          return <g key={c.id} transform={`translate(${p.x} ${p.y})`} className={`graph-node ${hierarchyTop.has(c.id)?'root-node':''} ${isMajor?'major-node':''} ${isSelected ? 'selected' : ''} ${!visible || selectedId && !isSelected && !isNeighbor ? 'muted' : ''}`} opacity={!visible ? .14 : selectedId && !isSelected && !isNeighbor ? .6 : 1} onPointerDown={e => begin(e, c.id)} role="button" tabIndex={visible ? 0 : -1} aria-label={`${c.title}${isMajor?', 큰 개념':isRoot?', 최상위 개념':''}, ${c.entry_count || 0}개의 기록`} aria-pressed={isSelected} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(c.id===selectedId?null:c.id); } }}>
             {isSelected && <rect x={-textWidth / 2 - 7} y={-nodeHeight/2-7} width={textWidth + 14} height={nodeHeight+14} rx="16" fill="none" stroke="#c5dcd1" strokeWidth="1" />}
             <rect x={-textWidth / 2} y={-nodeHeight/2} width={textWidth} height={nodeHeight} rx={isRoot?15:11} fill={isSelected ? '#285f50' : isRoot?'#e7f0df':'#fffefa'} stroke={isSelected ? '#285f50' : isRoot?'#7e9e69':'#dce2d9'} strokeWidth={isRoot?1.8:1.2} filter={`url(#${isSelected ? 'selected-shadow' : 'node-shadow'})`} />
-            {isRoot&&<text x={-textWidth/2+20} y={-18} fontSize={9} fontWeight={600} letterSpacing={1} fill={isSelected?'#b8d6a8':'#6f8a59'}>최상위 개념</text>}
+            {isRoot&&<text x={-textWidth/2+20} y={-18} fontSize={9} fontWeight={600} letterSpacing={1} fill={isSelected?'#b8d6a8':'#6f8a59'}>{isMajor?'큰 개념':'최상위 개념'}</text>}
             <circle cx={-textWidth / 2 + 21} cy={isRoot?9:0} r={isRoot?5.5:4.3} fill={isSelected ? '#9ad0b3' : color} />
             <text x={-textWidth / 2 + 35} y={isRoot?10:1} fill={isSelected ? '#ffffff' : '#344139'} fontSize={isRoot?16:14} fontWeight={isRoot?'700':isSelected?'600':'500'} dominantBaseline="middle">{c.title.length > 22 ? `${c.title.slice(0, 21)}…` : c.title}</text>
             {isSelected && <text x="0" y={nodeHeight/2+24} textAnchor="middle" fontSize="10.5" fill="#7a8d80" letterSpacing=".5">{c.entry_count || 0}개의 기록 · {c.category || '미분류'}</text>}
@@ -328,7 +329,7 @@ function Evidence({ ids = [], onEvidence }) {
   return <span className="evidence-links">{ids.slice(0, 4).map((id, index) => <button key={id} className="evidence-chip" title="근거 기록 보기" onClick={() => onEvidence(id)}>[{index + 1}]</button>)}</span>;
 }
 
-function Details({ concept, data, select, addEntry, addTerm, editConcept, editTerm, editEntry, removeTerm, removeEntry, highlightTerm, highlightEntry, editNotes, compare, termFocus, connect, close, summarize, busy }) {
+function Details({ concept, data, select, addEntry, addTerm, editConcept, editTerm, editEntry, removeTerm, removeEntry, highlightTerm, highlightEntry, editNotes, compare, toggleMajor, termFocus, connect, close, summarize, busy }) {
   const [tab, setTab] = useState('overview');
   const [expandedTerms, setExpandedTerms] = useState(new Set());
   useEffect(() => { setTab('overview'); setExpandedTerms(new Set()); }, [concept?.id]);
@@ -360,6 +361,7 @@ function Details({ concept, data, select, addEntry, addTerm, editConcept, editTe
       <div className="detail-eyebrow"><span><span className="category-dot" style={{ background: concept.color || '#568975' }} />{concept.category || '미분류'}</span><button className="icon-button" onClick={close} aria-label="상세 닫기"><X size={17} /></button></div>
       <div className="detail-title-row"><h2 className="detail-title">{concept.title}</h2><button className="section-action" aria-label="개념 수정" onClick={editConcept}><Pencil size={13}/>수정</button></div>
       {!!concept.aliases?.length && <div className="detail-aliases">{concept.aliases.join(' · ')}</div>}
+      <button className={`major-toggle ${concept.is_major?'active':''}`} aria-label={concept.is_major?'큰 개념 해제':'큰 개념으로 승격'} aria-pressed={!!concept.is_major} disabled={busy} onClick={toggleMajor}><ArrowUpToLine size={13}/>{concept.is_major?'큰 개념 해제':'큰 개념으로 승격'}</button>
       <div className="detail-meta"><span><FileText size={12} />{entries.length}개의 기록</span><span><GitBranch size={12} />{related.length}개의 연결</span></div>
       <div className="detail-tabs"><button className={`detail-tab ${showOverview ? 'active' : ''}`} onClick={() => setTab('overview')}><Layers3 size={14} /> 개요</button><button className={`detail-tab ${!showOverview ? 'active' : ''}`} onClick={() => setTab('timeline')}><Clock3 size={14} /> 기록 <span>{entries.length}</span></button></div>
     </div>
@@ -599,7 +601,7 @@ export default function App() {
           </>}</>}
         </section>
         <ResizeHandle {...panels.handle('right')}/>
-        {agentOpen ? <AgentChat api={request} onClose={()=>setAgentOpen(false)} onGraphChanged={()=>refresh(true).then(()=>setGraphReset(n=>n+1)).catch(()=>{})} onUnauthorized={()=>refresh().catch(()=>{})} onConcept={id=>{setGraphReset(n=>n+1);setView('main');setCategory(null);setQuery('');select(id||null);setAgentOpen(false);}}/> : <Details editNotes={()=>setModal('personal-notes')} compare={id=>{setComparisonId(id||null);setModal('comparison');}} removeTerm={term=>{setEditing(term);setModal('delete-term');}} removeEntry={entry=>{setEditing(entry);setModal('delete-entry');}} highlightEntry={async entry=>{try{await request(`/entries/${entry.id}`,{method:'PATCH',body:JSON.stringify({highlighted:!entry.highlighted})});await refresh(true);}catch(e){notify(e.message);}}} highlightTerm={async term=>{try{const stored=!term.id.startsWith('summary:');await request(`/concepts/${selected.id}/terms${stored?'/'+term.id:''}`,{method:stored?'PATCH':'POST',body:JSON.stringify({term:term.term,definition:term.definition,aliases:term.aliases,highlighted:!term.highlighted})});await refresh(true);}catch(e){notify(e.message);}}} editConcept={()=>{setEditing(selected);setModal('edit-concept');}} editTerm={term=>{setEditing(term);setModal('edit-term');}} editEntry={entry=>{setEditing(entry);setModal('edit-entry');}} termFocus={termFocus} addTerm={()=>setModal('term')} concept={selected} data={data} select={select} addEntry={() => setModal('entry')} connect={() => setModal('relation')} close={() => select(null)} busy={busy} summarize={async id => { try { await save(`/concepts/${encodeURIComponent(id)}/summarize`, {}, '요약 작업을 등록했어요. Codex 작업자가 연결되면 갱신됩니다.'); } catch (e) { notify(e.message); } }} />}
+        {agentOpen ? <AgentChat api={request} onClose={()=>setAgentOpen(false)} onGraphChanged={()=>refresh(true).then(()=>setGraphReset(n=>n+1)).catch(()=>{})} onUnauthorized={()=>refresh().catch(()=>{})} onConcept={id=>{setGraphReset(n=>n+1);setView('main');setCategory(null);setQuery('');select(id||null);setAgentOpen(false);}}/> : <Details toggleMajor={async()=>{setBusy(true);try{await request(`/concepts/${selected.id}`,{method:'PATCH',body:JSON.stringify({is_major:!selected.is_major})});await refresh(true);notify(selected.is_major?'큰 개념 표시를 해제했어요.':'큰 개념으로 승격했어요.');}catch(e){notify(e.message);}finally{setBusy(false);}}} editNotes={()=>setModal('personal-notes')} compare={id=>{setComparisonId(id||null);setModal('comparison');}} removeTerm={term=>{setEditing(term);setModal('delete-term');}} removeEntry={entry=>{setEditing(entry);setModal('delete-entry');}} highlightEntry={async entry=>{try{await request(`/entries/${entry.id}`,{method:'PATCH',body:JSON.stringify({highlighted:!entry.highlighted})});await refresh(true);}catch(e){notify(e.message);}}} highlightTerm={async term=>{try{const stored=!term.id.startsWith('summary:');await request(`/concepts/${selected.id}/terms${stored?'/'+term.id:''}`,{method:stored?'PATCH':'POST',body:JSON.stringify({term:term.term,definition:term.definition,aliases:term.aliases,highlighted:!term.highlighted})});await refresh(true);}catch(e){notify(e.message);}}} editConcept={()=>{setEditing(selected);setModal('edit-concept');}} editTerm={term=>{setEditing(term);setModal('edit-term');}} editEntry={entry=>{setEditing(entry);setModal('edit-entry');}} termFocus={termFocus} addTerm={()=>setModal('term')} concept={selected} data={data} select={select} addEntry={() => setModal('entry')} connect={() => setModal('relation')} close={() => select(null)} busy={busy} summarize={async id => { try { await save(`/concepts/${encodeURIComponent(id)}/summarize`, {}, '요약 작업을 등록했어요. Codex 작업자가 연결되면 갱신됩니다.'); } catch (e) { notify(e.message); } }} />}
       </div>
     </main>
     {modal === 'comparison' && <Comparisons Modal={Modal} concepts={data.concepts} relations={data.relations} comparisons={data.comparisons||[]} initialConceptId={selected?.id} initialComparisonId={comparisonId} api={request} onRefresh={()=>refresh(true)} onClose={()=>setModal(null)} notify={notify} onSelect={id=>{setAgentOpen(false);setView('main');setCategory(null);setQuery('');select(id);}}/>}

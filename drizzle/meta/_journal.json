@@ -43,6 +43,13 @@
       "when": 1793520723959,
       "tag": "0005_soft_blackheart",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1793521300370,
+      "tag": "0006_hesitant_serpent_society",
+      "breakpoints": true
     }
   ]
 }
