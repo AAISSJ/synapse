@@ -14,7 +14,7 @@ import Comparisons from './Comparisons.jsx';
 import AgentChat from './AgentChat.jsx';
 import KnowledgeSearch from './KnowledgeSearch.jsx';
 import {collectTerms,conceptSearchText} from '../shared/knowledge-search.mjs';
-import {hierarchyRoots} from '../shared/graph-hierarchy.mjs';
+import {hierarchyRoots,hierarchyPeers} from '../shared/graph-hierarchy.mjs';
 import {normalizeName} from '../shared/graph-plan.mjs';
 
 const API = '/api/v1';
@@ -113,7 +113,9 @@ function Modal({ title, subtitle, children, close, wide = false, footer }) {
   </div>;
 }
 
-function Graph({ concepts, relations, hierarchyRelations=relations, selectedId, onSelect, onPositionChange, query, category, categories }) {
+function Graph({ concepts, relations, hierarchyRelations=relations, peerMode=false, peerIds=[], onEndPeerMode, onPeerDetails, selectedId, onSelect, onPositionChange, query, category, categories }) {
+  const peerSet=useMemo(()=>new Set(peerIds),[peerIds.join('|')]);
+  const comparisonView=useRef(null);
   const hierarchyTop=useMemo(()=>hierarchyRoots(hierarchyRelations),[hierarchyRelations]);
   const roots=useMemo(()=>new Set([...hierarchyTop,...concepts.filter(c=>c.is_major).map(c=>c.id)]),[hierarchyTop,concepts]);
   const svgRef = useRef(null);
@@ -156,6 +158,7 @@ function Graph({ concepts, relations, hierarchyRelations=relations, selectedId, 
 
   const visibility = c => {
     if (!c) return false;
+    if(peerMode&&(c.id===selectedId||peerSet.has(c.id)))return true;
     const matchesQuery = !query || normalizeName(conceptSearchText(c)).includes(normalizeName(query));
     const matchesCategory = !category || c.category === category;
     return matchesQuery && matchesCategory;
@@ -268,15 +271,17 @@ function Graph({ concepts, relations, hierarchyRelations=relations, selectedId, 
     else { gesture.current = null; setDragging(false); }
     try { if (svgRef.current.hasPointerCapture(event.pointerId)) svgRef.current.releasePointerCapture(event.pointerId); } catch {}
   };
-  const fit = () => {
+  const fitNodes = ids => {
     if (pointers.current.size) return;
-    const points = Object.values(layoutRef.current);
+    const points = ids?ids.map(id=>layoutRef.current[id]).filter(Boolean):Object.values(layoutRef.current);
     if (!points.length) return applyView({ x: 0, y: 0, scale: 1 });
     const minX = Math.min(...points.map(p => p.x)) - 170, maxX = Math.max(...points.map(p => p.x)) + 170;
     const minY = Math.min(...points.map(p => p.y)) - 100, maxY = Math.max(...points.map(p => p.y)) + 100;
     const scale = clampScale(Math.min(baseBox.width / (maxX - minX), baseBox.height / (maxY - minY)) * .9);
     applyView({ x: baseBox.x + baseBox.width / 2 - (minX + maxX) / 2 * scale, y: baseBox.y + baseBox.height / 2 - (minY + maxY) / 2 * scale, scale });
   };
+  const fit=()=>fitNodes(null);
+  useEffect(()=>{if(peerMode){if(!comparisonView.current)comparisonView.current={...viewRef.current};fitNodes([selectedId,...peerIds]);}else if(comparisonView.current){applyView(comparisonView.current);comparisonView.current=null;}},[peerMode,selectedId,peerIds.join('|')]);
   const visibleCount = concepts.filter(visibility).length;
   return <>
     <svg ref={svgRef} className={`graph-canvas ${placementMode ? 'placement-mode' : 'pan-mode'} ${dragging ? 'is-dragging' : ''}`} data-scale={view.scale} data-pan-x={view.x} data-pan-y={view.y} viewBox={`${baseBox.x} ${baseBox.y} ${baseBox.width} ${baseBox.height}`} aria-label="개념 사이의 관계 지도. 노드를 선택하면 상세 기록을 볼 수 있습니다." onPointerDown={e => begin(e)} onPointerMove={move} onPointerUp={e => end(e)} onPointerCancel={e => end(e, true)} onLostPointerCapture={e => end(e, true)} style={{ touchAction: 'none' }}>
@@ -292,32 +297,35 @@ function Graph({ concepts, relations, hierarchyRelations=relations, selectedId, 
           const connected = r.source_id === selectedId || r.target_id === selectedId;
           const source = concepts.find(c => c.id === r.source_id), target = concepts.find(c => c.id === r.target_id);
           const muted = !visibility(source) || !visibility(target);
-          return <g key={r.id} className="graph-edge" opacity={muted ? .12 : selectedId && !connected ? .32 : 1}>
+          return <g key={r.id} className="graph-edge" opacity={peerMode ? .14 : muted ? .12 : selectedId && !connected ? .32 : 1}>
             <path markerEnd={r.type==='parent_of'?'url(#hierarchy-arrow)':undefined} d={r.type==='parent_of'?`M${a.x},${a.y+(roots.has(r.source_id)?39:27)*(b.y>=a.y?1:-1)} C${a.x},${(a.y+b.y)/2} ${b.x},${(a.y+b.y)/2} ${b.x},${b.y-(roots.has(r.target_id)?42:30)*(b.y>=a.y?1:-1)}`:`M${a.x},${a.y} C${a.x + (b.x - a.x) * .45},${a.y} ${b.x - (b.x - a.x) * .45},${b.y} ${b.x},${b.y}`}  fill="none" stroke={connected ? '#93b6a9' : '#c8d2ca'} strokeWidth={connected ? 1.8 : 1.3} />
             {connected && <circle cx={(a.x + b.x) / 2} cy={(a.y + b.y) / 2} r="3" fill="#9ab9ac" />}
           </g>;
         })}
+        {peerMode&&peerIds.map(id=>{const a=layout[selectedId],b=layout[id];if(!a||!b)return null;const path=`M${a.x},${a.y} Q${(a.x+b.x)/2},${Math.min(a.y,b.y)-90-Math.abs(a.x-b.x)*.08} ${b.x},${b.y}`;return <g key={'peer:'+id} className="comparison-edge" pointerEvents="none" role="img" aria-label={`${concepts.find(c=>c.id===selectedId)?.title}와 ${concepts.find(c=>c.id===id)?.title} 비교 연결`}><path d={path} fill="none" stroke="#b59bd9" strokeWidth={9} opacity={.15}/><path d={path} fill="none" stroke="#8c63c3" strokeWidth={2.5} strokeDasharray="9 5" vectorEffect="non-scaling-stroke"/></g>;})}
         {concepts.map(c => {
           const p = layout[c.id];
           const isSelected = selectedId === c.id;
-          const isNeighbor = neighbors.has(c.id);
+          const isPeer=peerMode&&peerSet.has(c.id),isMember=peerMode&&(isPeer||isSelected);
+          const isNeighbor = peerMode?isPeer:neighbors.has(c.id);
           const visible = visibility(c);
           const isMajor=!!c.is_major,isRoot=roots.has(c.id),nodeHeight=isRoot?78:54;
           const color = c.color || colorFor(c.category, categories);
           const textWidth = Math.min(isRoot?300:260, Math.max(isRoot?166:100, [...c.title].reduce((sum, ch) => sum + (/[^\x00-\x7F]/.test(ch) ? 14 : 7.5), 0) * (isRoot?1.12:1) + 57));
-          return <g key={c.id} transform={`translate(${p.x} ${p.y})`} className={`graph-node ${hierarchyTop.has(c.id)?'root-node':''} ${isMajor?'major-node':''} ${isSelected ? 'selected' : ''} ${!visible || selectedId && !isSelected && !isNeighbor ? 'muted' : ''}`} opacity={!visible ? .14 : selectedId && !isSelected && !isNeighbor ? .6 : 1} onPointerDown={e => begin(e, c.id)} role="button" tabIndex={visible ? 0 : -1} aria-label={`${c.title}${isMajor?', 큰 개념':isRoot?', 최상위 개념':''}, ${c.entry_count || 0}개의 기록`} aria-pressed={isSelected} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(c.id===selectedId?null:c.id); } }}>
+          return <g key={c.id} transform={`translate(${p.x} ${p.y})`} className={`graph-node ${hierarchyTop.has(c.id)?'root-node':''} ${isMajor?'major-node':''} ${isSelected ? 'selected' : ''} ${isMember?'peer-member':''} ${isPeer?'peer-node':''} ${peerMode&&!isMember?'peer-dimmed':''} ${!visible || selectedId && !isSelected && !isNeighbor ? 'muted' : ''}`} opacity={!visible ? .14 : selectedId && !isSelected && !isNeighbor ? .6 : 1} onPointerDown={e => begin(e, c.id)} role="button" tabIndex={visible ? 0 : -1} aria-label={`${c.title}${isMember?isSelected?', 비교 기준':', 비교 대상':''}${isMajor?', 큰 개념':isRoot?', 최상위 개념':''}, ${c.entry_count || 0}개의 기록`} aria-pressed={isSelected} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(c.id===selectedId?null:c.id); } }}>
             {isSelected && <rect x={-textWidth / 2 - 7} y={-nodeHeight/2-7} width={textWidth + 14} height={nodeHeight+14} rx="16" fill="none" stroke="#c5dcd1" strokeWidth="1" />}
-            <rect x={-textWidth / 2} y={-nodeHeight/2} width={textWidth} height={nodeHeight} rx={isRoot?15:11} fill={isSelected ? '#285f50' : isRoot?'#e7f0df':'#fffefa'} stroke={isSelected ? '#285f50' : isRoot?'#7e9e69':'#dce2d9'} strokeWidth={isRoot?1.8:1.2} filter={`url(#${isSelected ? 'selected-shadow' : 'node-shadow'})`} />
+            <rect x={-textWidth / 2} y={-nodeHeight/2} width={textWidth} height={nodeHeight} rx={isRoot?15:11} fill={isMember?(isSelected?'#7050a4':'#f0e9fa'):isSelected ? '#285f50' : isRoot?'#e7f0df':'#fffefa'} stroke={isMember?'#9973ca':isSelected ? '#285f50' : isRoot?'#7e9e69':'#dce2d9'} strokeWidth={isMember?2:isRoot?1.8:1.2} filter={`url(#${isSelected ? 'selected-shadow' : 'node-shadow'})`} />
             {isRoot&&<text x={-textWidth/2+20} y={-18} fontSize={9} fontWeight={600} letterSpacing={1} fill={isSelected?'#b8d6a8':'#6f8a59'}>{isMajor?'큰 개념':'최상위 개념'}</text>}
-            <circle cx={-textWidth / 2 + 21} cy={isRoot?9:0} r={isRoot?5.5:4.3} fill={isSelected ? '#9ad0b3' : color} />
+            <circle cx={-textWidth / 2 + 21} cy={isRoot?9:0} r={isRoot?5.5:4.3} fill={isMember?(isSelected?'#decdf6':'#9c7cc7'):isSelected ? '#9ad0b3' : color} />
             <text x={-textWidth / 2 + 35} y={isRoot?10:1} fill={isSelected ? '#ffffff' : '#344139'} fontSize={isRoot?16:14} fontWeight={isRoot?'700':isSelected?'600':'500'} dominantBaseline="middle">{c.title.length > 22 ? `${c.title.slice(0, 21)}…` : c.title}</text>
             {isSelected && <text x="0" y={nodeHeight/2+24} textAnchor="middle" fontSize="10.5" fill="#7a8d80" letterSpacing=".5">{c.entry_count || 0}개의 기록 · {c.category || '미분류'}</text>}
           </g>;
         })}
       </g>
     </svg>
+    {peerMode&&<div className="peer-graph-banner"><div><span className="peer-legend-line"/><strong>같은 계층 비교</strong><span>{peerIds.length+1}개 개념</span></div><div><button className="peer-mobile-details" onClick={onPeerDetails}>대상 선택·상세</button><button aria-label="지도 비교 해제" onClick={onEndPeerMode}><X size={12}/>해제</button></div></div>}
     <div className="graph-bottom">
-      <div className="canvas-legend">{categories.slice(0, 4).map(cat => <span className="legend-item" key={cat}><i className="legend-dot" style={{ background: colorFor(cat, categories) }} />{cat}</span>)}</div>
+      <div className="canvas-legend">{peerMode&&<span className="peer-legend"><i/>보라색 점선 · 비교 대상</span>}{!peerMode&&categories.slice(0, 4).map(cat => <span className="legend-item" key={cat}><i className="legend-dot" style={{ background: colorFor(cat, categories) }} />{cat}</span>)}</div>
       <div className="zoom-controls"><button className={`gesture-mode-button ${placementMode ? '' : 'active'}`} aria-label="지도 이동 모드" aria-pressed={!placementMode} title="드래그로 지도 이동 · 클릭으로 개념 선택" onClick={() => { if (!pointers.current.size) setPlacementMode(false); }}><Hand size={14} /><span>이동</span></button><button className={`gesture-mode-button ${placementMode ? 'active' : ''}`} aria-label="노드 배치 모드" aria-pressed={placementMode} title="노드를 드래그해 위치 변경" onClick={() => { if (!pointers.current.size) setPlacementMode(true); }}><Move size={14} /><span>배치</span></button><span className="control-divider" /><button className="icon-button" aria-label="축소" onClick={() => zoom(.85)}><ZoomOut size={16} /></button><span className="zoom-value">{Math.round(view.scale * 100)}%</span><button className="icon-button" aria-label="확대" onClick={() => zoom(1.18)}><ZoomIn size={16} /></button><span className="control-divider" /><button className="icon-button" aria-label="지도 전체 보기" title="지도 전체 보기" onClick={fit}><Focus size={17} /></button></div>
     </div>
     {(query || category) && <div className="graph-count">{visibleCount}개의 개념이 일치합니다</div>}
@@ -329,7 +337,7 @@ function Evidence({ ids = [], onEvidence }) {
   return <span className="evidence-links">{ids.slice(0, 4).map((id, index) => <button key={id} className="evidence-chip" title="근거 기록 보기" onClick={() => onEvidence(id)}>[{index + 1}]</button>)}</span>;
 }
 
-function Details({ concept, data, select, addEntry, addTerm, editConcept, editTerm, editEntry, removeTerm, removeEntry, highlightTerm, highlightEntry, editNotes, compare, toggleMajor, termFocus, connect, close, summarize, busy }) {
+function Details({ concept, data, select, addEntry, addTerm, editConcept, editTerm, editEntry, removeTerm, removeEntry, highlightTerm, highlightEntry, editNotes, compare, toggleMajor, peerMode, peerInfo, peerIds, togglePeerMode, choosePeer, showPeerGraph, termFocus, connect, close, summarize, busy }) {
   const [tab, setTab] = useState('overview');
   const [expandedTerms, setExpandedTerms] = useState(new Set());
   useEffect(() => { setTab('overview'); setExpandedTerms(new Set()); }, [concept?.id]);
@@ -362,6 +370,7 @@ function Details({ concept, data, select, addEntry, addTerm, editConcept, editTe
       <div className="detail-title-row"><h2 className="detail-title">{concept.title}</h2><button className="section-action" aria-label="개념 수정" onClick={editConcept}><Pencil size={13}/>수정</button></div>
       {!!concept.aliases?.length && <div className="detail-aliases">{concept.aliases.join(' · ')}</div>}
       <button className={`major-toggle ${concept.is_major?'active':''}`} aria-label={concept.is_major?'큰 개념 해제':'큰 개념으로 승격'} aria-pressed={!!concept.is_major} disabled={busy} onClick={toggleMajor}><ArrowUpToLine size={13}/>{concept.is_major?'큰 개념 해제':'큰 개념으로 승격'}</button>
+      <div className={`peer-controls ${peerMode?'active':''}`}><button className="peer-mode-toggle" aria-label={peerMode?'같은 계층 비교 해제':'같은 계층 비교'} aria-pressed={!!peerMode} disabled={!peerMode&&!peerInfo.peer_ids.length} onClick={togglePeerMode}><Columns3 size={14}/>{peerMode?'같은 계층 비교 해제':'같은 계층 비교'}<span>{peerInfo.peer_ids.length}</span></button>{peerMode&&<><p>{peerInfo.kind==='roots'?'최상위 개념끼리 비교하고 있어요.':`같은 상위 개념: ${peerInfo.parent_ids.map(id=>data.concepts.find(c=>c.id===id)?.title).filter(Boolean).join(' · ')}`}</p><div className="peer-target-picker">{peerInfo.peer_ids.map(id=><label className={peerIds.includes(id)?'checked':''} key={id}><input type="checkbox" checked={peerIds.includes(id)} onChange={e=>choosePeer(id,e.target.checked)}/>{data.concepts.find(c=>c.id===id)?.title}</label>)}</div><button className="peer-mobile-map" onClick={showPeerGraph}><Network size={12}/>지도에서 비교 보기</button></>}{!peerMode&&!peerInfo.peer_ids.length&&<p>같은 상위 개념을 연결하면 비교 대상을 찾을 수 있어요.</p>}</div>
       <div className="detail-meta"><span><FileText size={12} />{entries.length}개의 기록</span><span><GitBranch size={12} />{related.length}개의 연결</span></div>
       <div className="detail-tabs"><button className={`detail-tab ${showOverview ? 'active' : ''}`} onClick={() => setTab('overview')}><Layers3 size={14} /> 개요</button><button className={`detail-tab ${!showOverview ? 'active' : ''}`} onClick={() => setTab('timeline')}><Clock3 size={14} /> 기록 <span>{entries.length}</span></button></div>
     </div>
@@ -498,6 +507,7 @@ export default function App() {
   const [modal, setModal] = useState(null);
   const [editing,setEditing]=useState(null);
   const [comparisonId,setComparisonId]=useState(null);
+  const [peerCompareOn,setPeerCompareOn]=useState(false),[peerChoice,setPeerChoice]=useState(null),[peerDetailsVisible,setPeerDetailsVisible]=useState(false);
   const [agentOpen,setAgentOpen]=useState(false);
   const [graphReset,setGraphReset]=useState(0);
   const [termFocus,setTermFocus]=useState(null);
@@ -507,6 +517,11 @@ export default function App() {
   const searchRef = useRef(null);
   const categories = useMemo(() => [...new Set(data.concepts.map(c => c.category || '미분류'))], [data.concepts]);
   const selected = data.concepts.find(c => c.id === selectedId);
+  const peerInfo=useMemo(()=>hierarchyPeers(data.concepts,data.relations,selectedId),[data.concepts,data.relations,selectedId]);
+  const preferredPeers=useMemo(()=>{const table=(data.comparisons||[]).find(c=>c.concept_ids.includes(selectedId)&&c.concept_ids.some(id=>peerInfo.peer_ids.includes(id)));return table?table.concept_ids.filter(id=>peerInfo.peer_ids.includes(id)):peerInfo.peer_ids;},[data.comparisons,selectedId,peerInfo]);
+  const peerIds=peerChoice?.anchor===selectedId?peerChoice.ids.filter(id=>peerInfo.peer_ids.includes(id)):preferredPeers;
+  const peerMode=!!(peerCompareOn&&selected&&peerInfo.peer_ids.length);
+  useEffect(()=>{if(!selectedId||!peerInfo.peer_ids.length)setPeerCompareOn(false);},[selectedId,peerInfo.peer_ids.length]);
   const notify = useCallback(message => { setToast(message); clearTimeout(toastTimer.current); toastTimer.current = setTimeout(() => setToast(''), 3800); }, []);
   const refresh = useCallback(async (quiet = false) => {
     try {
@@ -571,7 +586,7 @@ export default function App() {
   const title = view === 'topics' ? '큰 주제에서 시작하는 탐색' : view === 'recent' ? '최근 쌓아온 지식' : view === 'topic' ? `${category}의 개념 지도` : '연결하며 넓어지는 지식';
   const displayName = data.user?.name || '나의 워크스페이스';
   if (authenticationRequired) return <SignIn />;
-  return <div className={`app ${selected ? 'has-selection' : ''} ${agentOpen ? 'has-agent' : ''} ${panels.expanded?'expanded-sidebar':''}`} style={panels.style}>
+  return <div className={`app ${selected ? 'has-selection' : ''} ${agentOpen ? 'has-agent' : ''} ${panels.expanded?'expanded-sidebar':''} ${peerMode?'is-peer-comparing':''} ${peerMode&&!peerDetailsVisible?'peer-graph-visible':''}`} style={panels.style}>
     <ResizeHandle {...panels.handle('left')}/>
     <aside className="sidebar">
       <a href="#" className="brand" onClick={e => { e.preventDefault(); navigate('main'); }} aria-label="Synapse 지식 지도 홈"><span className="brand-mark"><Network size={23} strokeWidth={1.7} /></span><div><span className="brand-word">synapse<span>.</span></span><span className="brand-kicker">YOUR KNOWLEDGE, CONNECTED</span></div></a>
@@ -594,14 +609,14 @@ export default function App() {
           })}</div> : <div className="directory-empty"><Layers3 size={32}/><h3>{query ? '일치하는 주제가 없어요.' : '큰 주제로 지도를 나눠보세요.'}</h3><p>개념을 만들 때 큰 주제에 DB처럼 이름을 적어주세요.</p><button className="button primary" onClick={() => setModal('concept')}><Plus size={15}/>주제와 개념 추가</button></div>}</div> : view === 'recent' ? <div className="directory-content"><div className="directory-heading"><div><span className="directory-kicker">RECENT KNOWLEDGE</span><h2>최근 기록한 지식 <small>{recent.length}</small></h2><p>같은 개념은 한 번만, 마지막 기록이 최신인 순서로 보여요.</p></div></div>{displayedRecent.length ? <div className="recent-knowledge-list">{displayedRecent.map(c => { const entry = latestRecords.get(c.id); return <button className="recent-knowledge-card recent-knowledge-item" key={c.id} onClick={() => openRecent(c.id)}><span className="topic-card-icon" style={{color:c.color || colorFor(c.category,categories)}}><BookOpen size={20}/></span><div><span className="recent-category">{c.category || '미분류'}</span><h3>{c.title}</h3><p>{entry.title || entry.content || '출처 링크를 기록했어요.'}</p><time dateTime={entry.recorded_at}>{dateLabel(entry.recorded_at,true)}</time></div><ArrowUpRight size={17}/></button>; })}</div> : <div className="directory-empty"><Clock3 size={32}/><h3>{query ? '일치하는 지식이 없어요.' : '아직 쌓인 기록이 없어요.'}</h3><p>메모나 링크를 남기면 최근 지식이 이곳에 모입니다.</p><button className="button primary" onClick={() => setModal(data.concepts.length ? 'entry' : 'concept')}><Plus size={15}/>첫 기록 남기기</button></div>}</div> : <>
           <div className="graph-top"><div className="view-label"><Network size={15} /><strong>{view === 'topic' ? category : '전체 개념 지도'}</strong><span className="graph-meta">{graphConcepts.length} 개념<span>·</span>{graphRelations.length} 연결</span></div><div className="graph-filters">{view === 'topic' && <button className="filter-chip" onClick={() => navigate('topics')}><ArrowLeft size={11}/>주제 목록</button>}<button className="filter-chip active" onClick={() => navigate(view === 'topic' ? 'main' : 'topics')}>{view === 'topic' ? '전체 지도' : '개념별 지도'}<ArrowUpRight size={11}/></button></div></div>
           <div className="canvas-top-hint"><span className="hint-dot" />{view === 'topic' ? `${category}에 속한 개념만 보고 있어요` : selected ? '연결을 따라 생각을 넓혀보세요' : '모든 개념이 연결된 나의 전체 지도'}</div>
-          {graphConcepts.length ? <Graph key={(view === 'topic' ? category : 'main')+':'+graphReset} concepts={graphConcepts} relations={graphRelations} hierarchyRelations={data.relations} selectedId={selectedId} onSelect={select} onPositionChange={(id, position) => request(`/concepts/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(position) }).catch(error => notify(`위치를 저장하지 못했어요. ${error.message}`))} query={query.trim()} category={null} categories={view === 'topic' ? [category] : categories} /> : <>
+          {graphConcepts.length ? <Graph key={(view === 'topic' ? category : 'main')+':'+graphReset} concepts={graphConcepts} relations={graphRelations} hierarchyRelations={data.relations} peerMode={peerMode} peerIds={peerIds} onEndPeerMode={()=>setPeerCompareOn(false)} onPeerDetails={()=>setPeerDetailsVisible(true)} selectedId={selectedId} onSelect={select} onPositionChange={(id, position) => request(`/concepts/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(position) }).catch(error => notify(`위치를 저장하지 못했어요. ${error.message}`))} query={query.trim()} category={null} categories={view === 'topic' ? [category] : categories} /> : <>
             <div className="empty-graph-decoration" aria-hidden="true"><span className="deco-node node-one"><span />나의 첫 개념</span><span className="deco-node node-two"><span />새로운 질문</span><span className="deco-node node-three"><span />다음 연결</span><svg viewBox="0 0 700 400"><path d="M210 130 C300 130 250 260 370 260 S480 170 540 170" /></svg></div>
             <div className="empty-map"><div className="empty-illustration"><GitBranch size={27} strokeWidth={1.5} /><span className="illustration-spark">✦</span></div><span className="empty-eyebrow">A PLACE FOR YOUR GROWING MIND</span><h2 className="empty-title">아는 것들이 연결되는 곳.</h2><p className="empty-description">궁금한 개념 하나에서 시작해보세요.<br />큰 주제로 묶고, 메모와 링크로 이해를 쌓아보세요.</p><div className="empty-actions"><button className="button primary" onClick={() => setModal('concept')}><Plus size={16} />첫 개념 만들기</button><button className="button secondary" disabled={busy} onClick={loadDemo}>{busy ? <Loader2 size={14} className="spin" /> : <Network size={15} />}예시 지도 둘러보기</button></div><p className="empty-footnote"><span className="status-dot" />나에게만 보이는 비공개 지식 공간</p></div>
             <div className="graph-bottom"><span className="canvas-empty-caption">연결에는 정해진 순서가 없어요.</span><div className="zoom-controls muted"><Focus size={16} /><span className="zoom-value">100%</span></div></div>
           </>}</>}
         </section>
         <ResizeHandle {...panels.handle('right')}/>
-        {agentOpen ? <AgentChat api={request} onClose={()=>setAgentOpen(false)} onGraphChanged={()=>refresh(true).then(()=>setGraphReset(n=>n+1)).catch(()=>{})} onUnauthorized={()=>refresh().catch(()=>{})} onConcept={id=>{setGraphReset(n=>n+1);setView('main');setCategory(null);setQuery('');select(id||null);setAgentOpen(false);}}/> : <Details toggleMajor={async()=>{setBusy(true);try{await request(`/concepts/${selected.id}`,{method:'PATCH',body:JSON.stringify({is_major:!selected.is_major})});await refresh(true);notify(selected.is_major?'큰 개념 표시를 해제했어요.':'큰 개념으로 승격했어요.');}catch(e){notify(e.message);}finally{setBusy(false);}}} editNotes={()=>setModal('personal-notes')} compare={id=>{setComparisonId(id||null);setModal('comparison');}} removeTerm={term=>{setEditing(term);setModal('delete-term');}} removeEntry={entry=>{setEditing(entry);setModal('delete-entry');}} highlightEntry={async entry=>{try{await request(`/entries/${entry.id}`,{method:'PATCH',body:JSON.stringify({highlighted:!entry.highlighted})});await refresh(true);}catch(e){notify(e.message);}}} highlightTerm={async term=>{try{const stored=!term.id.startsWith('summary:');await request(`/concepts/${selected.id}/terms${stored?'/'+term.id:''}`,{method:stored?'PATCH':'POST',body:JSON.stringify({term:term.term,definition:term.definition,aliases:term.aliases,highlighted:!term.highlighted})});await refresh(true);}catch(e){notify(e.message);}}} editConcept={()=>{setEditing(selected);setModal('edit-concept');}} editTerm={term=>{setEditing(term);setModal('edit-term');}} editEntry={entry=>{setEditing(entry);setModal('edit-entry');}} termFocus={termFocus} addTerm={()=>setModal('term')} concept={selected} data={data} select={select} addEntry={() => setModal('entry')} connect={() => setModal('relation')} close={() => select(null)} busy={busy} summarize={async id => { try { await save(`/concepts/${encodeURIComponent(id)}/summarize`, {}, '요약 작업을 등록했어요. Codex 작업자가 연결되면 갱신됩니다.'); } catch (e) { notify(e.message); } }} />}
+        {agentOpen ? <AgentChat api={request} onClose={()=>setAgentOpen(false)} onGraphChanged={()=>refresh(true).then(()=>setGraphReset(n=>n+1)).catch(()=>{})} onUnauthorized={()=>refresh().catch(()=>{})} onConcept={id=>{setGraphReset(n=>n+1);setView('main');setCategory(null);setQuery('');select(id||null);setAgentOpen(false);}}/> : <Details peerMode={peerMode} peerInfo={peerInfo} peerIds={peerIds} togglePeerMode={()=>{setPeerCompareOn(!peerMode);setPeerDetailsVisible(false);setQuery('');setAgentOpen(false);if(!peerMode){setView('main');setCategory(null);}}} choosePeer={(id,checked)=>setPeerChoice({anchor:selectedId,ids:checked?[...new Set([...peerIds,id])]:peerIds.filter(x=>x!==id)})} showPeerGraph={()=>setPeerDetailsVisible(false)} toggleMajor={async()=>{setBusy(true);try{await request(`/concepts/${selected.id}`,{method:'PATCH',body:JSON.stringify({is_major:!selected.is_major})});await refresh(true);notify(selected.is_major?'큰 개념 표시를 해제했어요.':'큰 개념으로 승격했어요.');}catch(e){notify(e.message);}finally{setBusy(false);}}} editNotes={()=>setModal('personal-notes')} compare={id=>{setComparisonId(id||null);setModal('comparison');}} removeTerm={term=>{setEditing(term);setModal('delete-term');}} removeEntry={entry=>{setEditing(entry);setModal('delete-entry');}} highlightEntry={async entry=>{try{await request(`/entries/${entry.id}`,{method:'PATCH',body:JSON.stringify({highlighted:!entry.highlighted})});await refresh(true);}catch(e){notify(e.message);}}} highlightTerm={async term=>{try{const stored=!term.id.startsWith('summary:');await request(`/concepts/${selected.id}/terms${stored?'/'+term.id:''}`,{method:stored?'PATCH':'POST',body:JSON.stringify({term:term.term,definition:term.definition,aliases:term.aliases,highlighted:!term.highlighted})});await refresh(true);}catch(e){notify(e.message);}}} editConcept={()=>{setEditing(selected);setModal('edit-concept');}} editTerm={term=>{setEditing(term);setModal('edit-term');}} editEntry={entry=>{setEditing(entry);setModal('edit-entry');}} termFocus={termFocus} addTerm={()=>setModal('term')} concept={selected} data={data} select={select} addEntry={() => setModal('entry')} connect={() => setModal('relation')} close={() => select(null)} busy={busy} summarize={async id => { try { await save(`/concepts/${encodeURIComponent(id)}/summarize`, {}, '요약 작업을 등록했어요. Codex 작업자가 연결되면 갱신됩니다.'); } catch (e) { notify(e.message); } }} />}
       </div>
     </main>
     {modal === 'comparison' && <Comparisons Modal={Modal} concepts={data.concepts} relations={data.relations} comparisons={data.comparisons||[]} initialConceptId={selected?.id} initialComparisonId={comparisonId} api={request} onRefresh={()=>refresh(true)} onClose={()=>setModal(null)} notify={notify} onSelect={id=>{setAgentOpen(false);setView('main');setCategory(null);setQuery('');select(id);}}/>}
