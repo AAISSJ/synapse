@@ -50,3 +50,10 @@ export const idempotency = sqliteTable('idempotency', {
   requestHash: text('request_hash').notNull(), entryId: text('entry_id').notNull(),
   createdAt: text('created_at').notNull(),
 }, t => [primaryKey({columns: [t.userId, t.key]})]);
+
+export const agentThreads = sqliteTable('agent_threads', {
+ id:text('id').primaryKey(),userId:text('user_id').notNull().references(()=>users.id),title:text('title').notNull(),createdAt:text('created_at').notNull(),updatedAt:text('updated_at').notNull(),
+},t=>[index('agent_threads_user').on(t.userId)]);
+export const agentRequests = sqliteTable('agent_requests', {
+ id:text('id').primaryKey(),userId:text('user_id').notNull().references(()=>users.id),threadId:text('thread_id').notNull().references(()=>agentThreads.id),clientId:text('client_id').notNull(),prompt:text('prompt').notNull(),status:text('status').notNull().default('pending'),reply:text('reply').notNull().default(''),resultJson:text('result_json'),error:text('error'),workerId:text('worker_id'),leaseToken:text('lease_token'),leaseUntil:text('lease_until'),attempts:integer('attempts').notNull().default(0),createdAt:text('created_at').notNull(),updatedAt:text('updated_at').notNull(),
+},t=>[uniqueIndex('agent_request_client').on(t.userId,t.clientId),index('agent_requests_user_status').on(t.userId,t.status),index('agent_requests_thread').on(t.threadId)]);

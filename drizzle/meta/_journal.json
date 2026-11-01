@@ -8,6 +8,13 @@
       "when": 1793443467423,
       "tag": "0000_sharp_kang",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1793499061004,
+      "tag": "0001_rare_dark_beast",
+      "breakpoints": true
     }
   ]
 }

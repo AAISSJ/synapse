@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import {runAgentOnce} from './agent-worker.mjs';
 import { readFile, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
@@ -83,7 +84,7 @@ function delay(ms, signal) {
   });
 }
 
-export async function runWorker(api, config, flags, { summarize = summarizeJob, signal } = {}) {
+export async function runWorker(api, config, flags, { summarize = summarizeJob, planner, signal } = {}) {
   const seconds = Number(flags.poll || 10);
   if (!Number.isFinite(seconds) || seconds < 1 || seconds > 300) throw new Error('--poll은 1~300초 사이여야 합니다.');
   const workerId = `atlas-${randomUUID()}`;
@@ -91,6 +92,8 @@ export async function runWorker(api, config, flags, { summarize = summarizeJob, 
   while (!signal?.aborted) {
     let job;
     try {
+      const graphed=await runAgentOnce(api,config,workerId,{planner,signal});
+      if(graphed){failures=0;if(flags.once)return;continue;}
       ({ job } = await api('/jobs/claim', { method: 'POST', body: { worker_id: workerId }, signal }));
       failures = 0;
       if (job) {

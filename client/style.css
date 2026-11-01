@@ -609,3 +609,36 @@ button.term-title:hover { color: #326728; text-decoration: underline; }
 .auth-footer { border-top: 1px solid #e4eadd; padding: 24px 0; font-size: 10px; color: #9aaa90; text-align: center; }
 @media (max-width: 900px) { .auth-content { gap: 40px; } .auth-features { gap: 18px; } .auth-card { padding: 35px 24px 27px; } }
 @media (max-width: 650px) { .auth-page { padding: 0 24px; } .auth-header { min-height: 90px; } .auth-header-note { font-size: 10px; } .auth-content { padding: 46px 0; grid-template-columns: minmax(0,1fr); gap: 33px; } .auth-intro h1 { font-size: 35px; margin: 17px 0; } .auth-intro > p { font-size: 12px; } .auth-features { margin-top: 29px; justify-content: space-between; gap: 10px; } .auth-features span { max-width: 95px; line-height: 1.7; } .auth-card { padding: 30px 24px 25px; } .auth-card h2 { font-size: 19px; } .auth-footer { font-size: 9px; padding: 19px 0; } }
+/* Graph agent conversation */
+.agent-panel { display:flex; flex-direction:column; min-height:0; background:#fffefb; }
+.agent-header { display:flex; align-items:center; justify-content:space-between; padding:23px 21px 18px; border-bottom:1px solid var(--line); }
+.agent-title { display:flex; align-items:center; gap:10px; }
+.agent-avatar { width:36px; height:36px; display:grid; place-items:center; border-radius:10px; background:#eaf2e7; color:#42745b; }
+.agent-title h2 { margin:0 0 5px; font-size:15px; font-weight:600; }
+.agent-title p { margin:0; font-size:10px; color:#8b977f; }
+.agent-thread-bar { display:flex; align-items:center; gap:8px; padding:12px 17px; border-bottom:1px solid var(--line); }
+.agent-thread-bar label { display:flex; align-items:center; gap:5px; flex:1; min-width:0; color:#8a977c; }
+.agent-thread-bar select { background:transparent; border:0; color:#75866a; font-size:10px; width:100%; text-overflow:ellipsis; }
+.agent-messages { flex:1; overflow-y:auto; min-height:0; padding:20px 17px; scrollbar-width:thin; }
+.agent-empty { text-align:center; padding:55px 7px 25px; color:#8caa7c; }
+.agent-empty h3 { margin:22px 0 12px; color:#3f6746; font-size:17px; font-weight:550; }
+.agent-empty p { font-size:11px; color:#8c9980; line-height:1.9; }
+.agent-example { display:flex; align-items:center; gap:8px; width:100%; margin-top:23px; background:#f3f7ed; color:#788e65; border:1px solid #e4ebdb; border-radius:8px; padding:13px 10px; font-size:10px; text-align:left; }
+.agent-turn { margin-bottom:24px; }
+.agent-bubble { padding:14px; border-radius:11px; margin-bottom:12px; line-height:1.85; }
+.agent-bubble.user { background:#eef4e8; margin-left:27px; }
+.agent-bubble.assistant { background:#f9faf6; border:1px solid #e8eddf; margin-right:9px; }
+.agent-role { display:flex; align-items:center; gap:5px; font-size:9px; color:#84967a; font-weight:600; }
+.agent-bubble p { white-space:pre-wrap; overflow-wrap:anywhere; font-size:11px; margin:7px 0 0; }
+.agent-result { display:flex; gap:5px; flex-wrap:wrap; margin:12px 0; }
+.agent-result span { font-size:9px; color:#65835b; background:#edf3e6; border-radius:4px; padding:3px 6px; }
+.agent-progress { display:flex; align-items:center; gap:6px; }
+.agent-bubble .agent-pending-help { font-size:10px; color:#89987b; line-height:1.8; }
+.agent-error-detail { color:#a17b69; font-size:10px!important; }
+.agent-composer { padding:15px 17px 10px; border-top:1px solid var(--line); background:#fffefb; }
+.agent-composer textarea { display:block; width:100%; padding:12px; border:1px solid #dde7d4; border-radius:8px; background:#fbfdf7; font-size:12px; color:#425b37; resize:vertical; min-height:80px; max-height:180px; line-height:1.7; }
+.agent-composer > div { display:flex; align-items:center; justify-content:space-between; gap:5px; margin-top:9px; }
+.agent-composer > div > span { color:#9ca58f; font-size:8px; }
+.agent-footnote { color:#a0aa94; font-size:8px; text-align:center; margin:10px 0 0; }
+.sr-only { position:absolute; width:1px; height:1px; padding:0; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; }
+@media(max-width:760px){ .has-agent .agent-panel { display:flex; } .top-agent { font-size:10px!important; width:auto!important; padding:0 9px!important; gap:4px!important; } .agent-composer textarea { font-size:14px; } .agent-header { padding:16px 20px; } .agent-empty { padding-top:35px; } }

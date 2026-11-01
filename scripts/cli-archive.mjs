@@ -6,6 +6,7 @@ export async function cliArchive() {
   await rm(target,{recursive:true,force:true});
   await mkdir(target,{recursive:true});
   await cp('cli',`${target}/cli`,{recursive:true,filter:p=>!p.endsWith('.test.mjs')});
+  await cp('shared',`${target}/shared`,{recursive:true});
   await cp('CLI_README.md',`${target}/README.md`);
   await cp('Dockerfile.worker',`${target}/Dockerfile.worker`);
   // Keep the full lockfile compatible with npm ci in the worker image.

@@ -74,16 +74,16 @@ test('worker completes real work through lease protocol', async () => {
     return path === '/jobs/claim' ? { job } : {};
   };
   await runWorker(api, {}, { once: true }, { summarize: async received => { assert.equal(received.id, job.id); return valid(); } });
-  assert.deepEqual(calls.map(call => call.path), ['/jobs/claim', '/jobs/job1/complete']);
-  assert.equal(calls[1].options.body.lease_token, 'lease');
+  assert.deepEqual(calls.map(call => call.path), ['/agent/claim', '/jobs/claim', '/jobs/job1/complete']);
+  assert.equal(calls[2].options.body.lease_token, 'lease');
 });
 
 test('worker records failure without fabricating a summary', async () => {
   const calls = [];
   const api = async (path, options) => { calls.push({ path, options }); return path === '/jobs/claim' ? { job } : {}; };
   await assert.rejects(runWorker(api, { token: 'app-secret' }, { once: true }, { summarize: async () => { throw new Error('missing auth app-secret'); } }), /인증/);
-  assert.deepEqual(calls.map(call => call.path), ['/jobs/claim', '/jobs/job1/fail']);
-  assert.ok(!calls[1].options.body.error.includes('app-secret'));
+  assert.deepEqual(calls.map(call => call.path), ['/agent/claim', '/jobs/claim', '/jobs/job1/fail']);
+  assert.ok(!calls[2].options.body.error.includes('app-secret'));
 });
 
 test('installed SDK passes sandbox and JSON schema to an executable and parses its events', { skip: process.platform === 'win32' }, async () => {

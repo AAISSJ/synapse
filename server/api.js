@@ -1,3 +1,4 @@
+import { routeAgent } from './agent.js';
 const PREFIX = '/api/v1';
 const MAX_BODY = 180_000;
 const LEASE_MS = 15 * 60 * 1000;
@@ -233,6 +234,8 @@ export async function handleApi(request, env) {
     if (!env.DB) fail(503,'storage_unavailable','저장소 연결이 아직 준비되지 않았습니다.');
     const db = env.DB;
     const user = await authenticate(request, db);
+    const agentResponse=await routeAgent(request,db,user,path,method,readBody);
+    if(agentResponse)return agentResponse;
     if (path === '/bootstrap' && method === 'GET') return response(await loadData(db,user));
     if (path === '/export' && method === 'GET') return response({format:'atlas-knowledge-export',version:1,exported_at:now(),...await loadData(db,user)},200,{'Content-Disposition':'attachment; filename="synapse-knowledge.json"'});
     if (path === '/settings' && method === 'GET') return response({tokens:await all(db,'SELECT id,name,prefix,created_at FROM api_tokens WHERE user_id=? ORDER BY created_at DESC',user.id),worker:{engine:'codex-sdk',requires_companion:true,lease_minutes:15}});
@@ -306,6 +309,11 @@ function openapi(origin) {
     JobClaimInput: object({worker_id:string},['worker_id']),
     JobCompleteInput: object({lease_token:string,summary:ref('Summary')},['lease_token','summary']),
     JobFailInput: object({lease_token:string,error:{type:'string',maxLength:2000}},['lease_token','error']),
+    AgentInput: object({prompt:{type:'string',minLength:1,maxLength:4000},client_id:{type:'string',minLength:1,maxLength:100},thread_id:string},['prompt','client_id']),
+    GraphNode: object({key:string,title:string,category:string,description:string,aliases:strings,existing_id:{type:['string','null']}},['key','title','category','description','aliases']),
+    GraphEdge: object({source_key:string,target_key:string,type:{type:'string',enum:['parent_of','related','prerequisite']}},['source_key','target_key','type']),
+    GraphPlan: object({message:string,nodes:{type:'array',minItems:1,maxItems:40,items:ref('GraphNode')},relations:{type:'array',maxItems:100,items:ref('GraphEdge')}},['message','nodes','relations']),
+    AgentCompleteInput: object({lease_token:string,plan:ref('GraphPlan')},['lease_token','plan']),
     Empty: object({}),
     Error: object({error:object({code:string,message:string},['code','message'])},['error']),
   };
@@ -316,9 +324,16 @@ function openapi(origin) {
     openapi:'3.1.0',
     info:{title:'Synapse Knowledge API',version:'1.0.0',description:'개인 지식 지도 API. 원본 기록 저장은 즉시 완료되고 Codex SDK 요약은 비동기로 처리됩니다. API 토큰은 웹 설정에서 발급합니다. 비공개 Sites에서는 플랫폼 서비스 접근 헤더도 필요합니다.'},
     servers:[{url:origin+PREFIX}],
-    security:[{ApiToken:[],SitesServiceAccess:[]}],
+    security:[{ApiToken:[]}],
     components:{schemas,securitySchemes:{ApiToken:{type:'http',scheme:'bearer',description:'웹 API 설정에서 발급한 kg_ 토큰'},SitesServiceAccess:{type:'apiKey',in:'header',name:'OAI-Sites-Authorization',description:'비공개 Sites 접근용 값: Bearer <Sites 서비스 토큰>'}}},
     paths:{
+      '/agent/threads':{get:op('listAgentThreads','내 에이전트 대화 목록')},
+      '/agent/threads/{id}':{parameters:idParam,get:op('getAgentThread','대화와 그래프 생성 상태')},
+      '/agent/requests':{post:op('createAgentRequest','키워드로 그래프 구성 요청','AgentInput',202)},
+      '/agent/claim':{post:op('claimAgentRequest','그래프 생성 작업 임대','JobClaimInput')},
+      '/agent/requests/{id}/complete':{parameters:idParam,post:op('applyAgentGraph','검증한 노드와 관계를 한 번만 적용','AgentCompleteInput')},
+      '/agent/requests/{id}/fail':{parameters:idParam,post:op('failAgentRequest','생성 실패 보고','JobFailInput')},
+      '/agent/requests/{id}/retry':{parameters:idParam,post:op('retryAgentRequest','실패한 요청 재시도','Empty')},
       '/bootstrap':{get:op('getBootstrap','전체 지도와 기록 조회')},
       '/concepts':{get:{...op('searchConcepts','개념과 별칭 검색'),parameters:[{name:'q',in:'query',schema:string}]},post:op('createConcept','개념 생성','ConceptInput',201)},
       '/concepts/{id}':{parameters:idParam,get:op('getConcept','개념과 현재 요약 조회'),patch:op('updateConcept','개념과 위치 수정','ConceptUpdate')},

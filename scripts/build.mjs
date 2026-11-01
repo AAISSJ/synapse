@@ -1,7 +1,6 @@
 import { build } from 'esbuild';
 import { mkdir, readFile, writeFile, cp } from 'node:fs/promises';
 import { cliArchive } from './cli-archive.mjs';
-import { spawnSync } from 'node:child_process';
 await mkdir('.build', { recursive:true });
 await mkdir('dist/server', { recursive:true });
 await mkdir('dist/.openai', { recursive:true });
@@ -9,17 +8,7 @@ await build({entryPoints:['client/main.jsx'],bundle:true,minify:true,format:'iif
 const js = await readFile('.build/app.js','utf8');
 const css = await readFile('.build/app.css','utf8');
 const cliZip=await cliArchive();
-const tracked=spawnSync('git',['ls-files','-z'],{encoding:'utf8'});
-if(tracked.status!==0)throw new Error('Could not list source files');
-const sourceFiles=tracked.stdout.split('\0').filter(Boolean);
-const forbidden=/^(?:node_modules|dist|\.build|\.sites-runtime|\.wrangler|\.git)(?:\/|$)|(?:^|\/)\.env(?:$|\.)|\.sqlite(?:$|[.-])/;
-if(sourceFiles.some(path=>forbidden.test(path)))throw new Error('Runtime files cannot be included in source download');
-const sourcePath='.build/synapse-source.zip';
-await writeFile('.build/source-files.json',JSON.stringify(sourceFiles));
-const zipped=spawnSync('python3',['-c',"import sys,json,zipfile; files=json.load(open(sys.argv[2])); z=zipfile.ZipFile(sys.argv[1],'w',zipfile.ZIP_DEFLATED); [z.write(p,p) for p in files]; z.close()",sourcePath,'.build/source-files.json'],{encoding:'utf8'});
-if(zipped.status!==0)throw new Error('Could not package source download');
-const sourceZip=(await readFile(sourcePath)).toString('base64');
-await writeFile('.build/assets.js', `export const js=${JSON.stringify(js)};export const css=${JSON.stringify(css)};export const cliZip=${JSON.stringify(cliZip)};export const sourceZip=${JSON.stringify(sourceZip)};`);
+await writeFile('.build/assets.js', `export const js=${JSON.stringify(js)};export const css=${JSON.stringify(css)};export const cliZip=${JSON.stringify(cliZip)};`);
 await build({entryPoints:['worker/index.js'],bundle:true,minify:true,format:'esm',platform:'browser',target:'es2022',outfile:'dist/server/index.js',legalComments:'none'});
 await cp('.openai/hosting.json','dist/.openai/hosting.json');
 await cp('drizzle','dist/drizzle',{recursive:true});
