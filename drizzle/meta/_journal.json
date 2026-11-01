@@ -29,6 +29,13 @@
       "when": 1793515876101,
       "tag": "0003_white_warlock",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1793519967084,
+      "tag": "0004_outgoing_starjammers",
+      "breakpoints": true
     }
   ]
 }

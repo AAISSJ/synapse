@@ -14,6 +14,7 @@ export const concepts = sqliteTable('concepts', {
 }, t => [index('concepts_user_idx').on(t.userId)]);
 export const entries = sqliteTable('entries', {
   id: text('id').primaryKey(), userId: text('user_id').notNull().references(() => users.id),
+  highlighted: integer('highlighted').notNull().default(0),
   title: text('title').notNull().default(''), content: text('content').notNull().default(''),
   url: text('url').notNull().default(''), recordedAt: text('recorded_at').notNull(),
   subjectPeriod: text('subject_period').notNull().default(''), source: text('source').notNull().default('web'),
@@ -59,6 +60,7 @@ export const agentRequests = sqliteTable('agent_requests', {
 },t=>[uniqueIndex('agent_request_client').on(t.userId,t.clientId),index('agent_requests_user_status').on(t.userId,t.status),index('agent_requests_thread').on(t.threadId)]);
 
 export const conceptTerms = sqliteTable('concept_terms', {
+ highlighted:integer('highlighted').notNull().default(0),hidden:integer('hidden').notNull().default(0),
  id:text('id').primaryKey(),userId:text('user_id').notNull().references(()=>users.id),conceptId:text('concept_id').notNull().references(()=>concepts.id),nameKey:text('name_key').notNull(),term:text('term').notNull(),definition:text('definition').notNull(),aliases:text('aliases').notNull().default('[]'),source:text('source').notNull().default('manual'),createdAt:text('created_at').notNull(),updatedAt:text('updated_at').notNull(),
 },t=>[uniqueIndex('concept_term_name').on(t.conceptId,t.nameKey),index('concept_terms_owner').on(t.userId)]);
 

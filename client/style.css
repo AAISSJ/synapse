@@ -704,3 +704,32 @@ button.term-title:hover { color: #326728; text-decoration: underline; }
 .term-edit { flex-shrink:0; color:#7b8c70; }
 .entry-edit { float:right; margin:0 0 8px 10px; }
 .timeline-card .entry-title { overflow-wrap:anywhere; }
+
+.entry-actions { display:flex; gap:4px; justify-content:flex-end; align-items:center; margin-bottom:5px; }
+.entry-actions .entry-edit { float:none; margin:0; }
+.entry-actions .icon-button,.term-heading-row .icon-button { width:26px; height:27px; }
+.is-important { background:#fff7d5!important; border-color:#ddbf65!important; box-shadow:inset 3px 0 #d8aa32; }
+.term-item.is-important { padding-left:10px; padding-right:7px; border-radius:7px; margin:5px 0; }
+.highlight-action.active { background:#f3d96e; color:#735812; border-radius:5px; }
+.danger-button { background:#b74b40; color:white; border-color:#b74b40; }
+.danger-button:hover { background:#9f3e35; }
+.delete-explanation { font-size:12px; line-height:1.8; color:#69745f; }
+.markdown { font-size:12px; line-height:1.85; overflow-wrap:anywhere; white-space:normal; }
+.markdown > :first-child { margin-top:0; }.markdown > :last-child { margin-bottom:0; }
+.markdown p { margin:0 0 .85em; }.markdown h1,.markdown h2,.markdown h3,.markdown h4 { color:#344b2b; font-weight:650; line-height:1.5; margin:1.2em 0 .6em; }
+.markdown h1 { font-size:20px; }.markdown h2 { font-size:17px; }.markdown h3 { font-size:15px; }.markdown h4 { font-size:13px; }
+.markdown ul,.markdown ol { margin:.6em 0 1em; padding-left:22px; }.markdown li { margin:.2em 0; }.markdown li > p { margin:0; }
+.markdown blockquote { margin:1em 0; border-left:3px solid #a6bc92; padding:5px 12px; background:#f3f6ee; color:#6a785e; }
+.markdown a { color:#386d58; text-decoration:underline; text-underline-offset:2px; }
+.markdown code { font:11px/1.7 ui-monospace,SFMono-Regular,Consolas,monospace; border-radius:4px; background:#edf1e7; padding:2px 4px; }
+.markdown pre { max-width:100%; overflow-x:auto; padding:13px; border-radius:7px; background:#24322b; color:#e1ebdb; white-space:pre; }
+.markdown pre code { padding:0; background:transparent; color:inherit; }.markdown hr { border:0; border-top:1px solid #dce3d5; margin:18px 0; }
+.markdown mark { background:#ffe178; color:#4c411c; border-radius:3px; padding:1px 3px; box-decoration-break:clone; }
+.markdown-table { max-width:100%; overflow-x:auto; margin:12px 0; }.markdown table { border-collapse:collapse; font-size:11px; min-width:100%; }
+.markdown th,.markdown td { border:1px solid #dce3d6; padding:7px 10px; text-align:left; min-width:70px; }.markdown th { background:#edf3e6; font-weight:600; }
+.markdown .task-list-item { list-style:none; }.markdown input[type=checkbox] { margin-right:6px; accent-color:#6c8956; }.markdown-image { color:#87927e; font-size:11px; }
+.markdown-editor { border:1px solid #d9e2d1; border-radius:8px; overflow:hidden; background:#fffefb; }.markdown-editor .textarea { border:0; border-radius:0; display:block; resize:vertical; }
+.markdown-toolbar { display:flex; justify-content:space-between; padding:6px; gap:8px; background:#f4f7ef; border-bottom:1px solid #e0e7d9; }.markdown-toolbar > div { display:flex; gap:3px; }
+.markdown-toolbar button { display:flex; align-items:center; gap:5px; padding:6px 8px; border:0; background:transparent; color:#75836a; border-radius:4px; font-size:10px; }.markdown-toolbar button.active { background:#e4edda; color:#41632e; }
+.markdown-preview { min-height:180px; max-height:45vh; overflow:auto; padding:14px; }.markdown-help { font-size:9px; color:#8b967e; padding:8px 11px; margin:0; border-top:1px solid #e7ecdf; }
+.term-definition .markdown { font-size:11px; }.entry-content.markdown { white-space:normal; }

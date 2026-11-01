@@ -5,6 +5,7 @@ import { routeAgent } from './agent.js';
 const PREFIX = '/api/v1';
 const MAX_BODY = 180_000;
 const LEASE_MS = 15 * 60 * 1000;
+const bool=(value,name)=>{if(typeof value!=='boolean')fail(400,'invalid_input',`${name}은 boolean이어야 합니다.`);return value?1:0;};
 const now = () => new Date().toISOString();
 const id = prefix => `${prefix}_${crypto.randomUUID().replaceAll('-', '')}`;
 const parse = (value, fallback) => { try { return JSON.parse(value); } catch { return fallback; } };
@@ -93,7 +94,7 @@ async function loadData(db, user) {
   const summaryMap = new Map(summaries.map(s => [s.concept_id, { ...parse(s.payload, {}), revision: s.revision, generated_at: s.generated_at }]));
   const entryLinks = new Map();
   for (const link of links) entryLinks.set(link.entry_id, [...(entryLinks.get(link.entry_id) || []), link.concept_id]);
-  return { concepts: cs.map(c => conceptData(c, summaryMap.get(c.id) || null, terms.filter(t=>t.concept_id===c.id).map(t=>({id:t.id,term:t.term,definition:t.definition,aliases:parse(t.aliases,[]),source:t.source,concept_id:null,evidence_ids:[]})))), entries: es.map(e => entryData(e, entryLinks.get(e.id) || [])), relations: rs, jobs: js.map(safeJob), user: {name: user.name, auth_provider:user.auth_provider||'chatgpt', github_connected:await githubConnection(db,user.id)}, demo: !!(await first(db, 'SELECT demo_loaded FROM users WHERE id=?', user.id))?.demo_loaded };
+  return { concepts: cs.map(c => conceptData(c, summaryMap.get(c.id) || null, terms.filter(t=>t.concept_id===c.id).map(t=>({id:t.id,term:t.term,definition:t.definition,aliases:parse(t.aliases,[]),source:t.source,hidden:!!t.hidden,highlighted:!!t.highlighted,concept_id:null,evidence_ids:[]})))), entries: es.map(e => entryData(e, entryLinks.get(e.id) || [])), relations: rs, jobs: js.map(safeJob), user: {name: user.name, auth_provider:user.auth_provider||'chatgpt', github_connected:await githubConnection(db,user.id)}, demo: !!(await first(db, 'SELECT demo_loaded FROM users WHERE id=?', user.id))?.demo_loaded };
 }
 
 async function conceptEntries(db, userId, conceptId) {
@@ -118,6 +119,7 @@ async function createEntry(request, db, user, body) {
   if (!content && !url) fail(400, 'empty_entry', '메모나 링크를 입력해주세요.');
   if (url) { let parsed; try { parsed = new URL(url); } catch {} if (!parsed || !['https:', 'http:'].includes(parsed.protocol)) fail(400, 'invalid_url', 'http 또는 https 링크를 입력해주세요.'); }
   const subjectPeriod = text(body.subject_period, 'subject_period', 100, true);
+  const highlighted=body.highlighted===undefined?0:bool(body.highlighted,'highlighted');
   const source = text(body.source ?? 'api', 'source', 100);
   const key = request.headers.get('Idempotency-Key');
   if (key && (key.length > 200 || !key.trim())) fail(400, 'invalid_idempotency_key', 'Idempotency-Key는 1~200자여야 합니다.');
@@ -132,7 +134,7 @@ async function createEntry(request, db, user, body) {
   if (key) { const repeated = await repeat(); if (repeated) return response(repeated); }
   const entryId = id('entry'); const timestamp = now(); const statements = [];
   if (key) statements.push(statement(db, 'INSERT INTO idempotency (user_id,key,request_hash,entry_id,created_at) VALUES (?,?,?,?,?)', user.id, key, requestHash, entryId, timestamp));
-  statements.push(statement(db, 'INSERT INTO entries (id,user_id,title,content,url,recorded_at,subject_period,source) VALUES (?,?,?,?,?,?,?,?)', entryId, user.id, title, content, url, timestamp, subjectPeriod, source));
+  statements.push(statement(db, 'INSERT INTO entries (id,user_id,title,content,url,recorded_at,subject_period,source,highlighted) VALUES (?,?,?,?,?,?,?,?,?)', entryId, user.id, title, content, url, timestamp, subjectPeriod, source,highlighted));
   const jobIds = [];
   for (const conceptId of conceptIds) {
     const jobId = id('job'); jobIds.push(jobId);
@@ -142,7 +144,7 @@ async function createEntry(request, db, user, body) {
     statements.push(statement(db, "INSERT INTO jobs (id,user_id,concept_id,revision,status,attempts,created_at,updated_at) SELECT ?,user_id,id,revision,'pending',0,?,? FROM concepts WHERE id=? AND user_id=?", jobId, timestamp, timestamp, conceptId, user.id));
   }
   try { await db.batch(statements); } catch (error) { if (key) { const repeated = await repeat(); if (repeated) return response(repeated); } throw error; }
-  return response({entry: {id: entryId,title,content,url,recorded_at: timestamp,subject_period: subjectPeriod,source,concept_ids: conceptIds},job_ids: jobIds}, 201);
+  return response({entry: {id: entryId,title,content,url,recorded_at: timestamp,subject_period: subjectPeriod,source,highlighted:!!highlighted,concept_ids: conceptIds},job_ids: jobIds}, 201);
 }
 
 // Editing evidence invalidates both pending and leased work for every affected concept.
@@ -163,14 +165,15 @@ async function updateEntry(request,db,user,entryId,body){
   const content=text(body.content??current.content,'content',80000,true),title=text(body.title??current.title,'title',300,true),url=text(body.url??current.url,'url',4000,true),subjectPeriod=text(body.subject_period??current.subject_period,'subject_period',100,true);
   if(!content&&!url)fail(400,'empty_entry','메모나 링크를 입력해주세요.');
   if(url){let parsed;try{parsed=new URL(url);}catch{}if(!parsed||!['http:','https:'].includes(parsed.protocol))fail(400,'invalid_url','http 또는 https 링크를 입력해주세요.');}
+  const highlighted=body.highlighted===undefined?current.highlighted:bool(body.highlighted,'highlighted');
   const changed=content!==current.content||title!==current.title||url!==current.url||subjectPeriod!==current.subject_period||[...conceptIds].sort().join(',')!==[...previous].sort().join(',');
-  if(changed){const timestamp=now();await db.batch([
-    statement(db,'UPDATE entries SET title=?,content=?,url=?,subject_period=? WHERE id=? AND user_id=?',title,content,url,subjectPeriod,entryId,user.id),
+  if(changed||highlighted!==current.highlighted){const timestamp=now();await db.batch([
+    statement(db,'UPDATE entries SET title=?,content=?,url=?,subject_period=?,highlighted=? WHERE id=? AND user_id=?',title,content,url,subjectPeriod,highlighted,entryId,user.id),
     statement(db,'DELETE FROM entry_concepts WHERE entry_id=?',entryId),
     ...conceptIds.map(c=>statement(db,'INSERT INTO entry_concepts (entry_id,concept_id) VALUES (?,?)',entryId,c)),
-    ...revisionStatements(db,user.id,[...new Set([...previous,...conceptIds])],timestamp),
+    ...(changed?revisionStatements(db,user.id,[...new Set([...previous,...conceptIds])],timestamp):[]),
   ]);}
-  return response({entry:entryData({...current,title,content,url,subject_period:subjectPeriod},conceptIds),changed});
+  return response({entry:entryData({...current,title,content,url,highlighted,subject_period:subjectPeriod},conceptIds),changed});
 }
 
 async function claimJob(db, user, body) {
@@ -307,31 +310,46 @@ export async function handleApi(request, env) {
       await db.batch(writes);return response(conceptData(await ownedConcept(db,user.id,current.id)));
     }
     match=path.match(/^\/concepts\/([^/]+)\/terms\/([^/]+)$/);
-    if(match&&method==='PATCH'){
+    if(match&&['PATCH','DELETE'].includes(method)){
       await ownedConcept(db,user.id,match[1]);
       const current=await first(db,'SELECT * FROM concept_terms WHERE id=? AND concept_id=? AND user_id=?',match[2],match[1],user.id);
       if(!current)fail(404,'not_found','용어를 찾을 수 없습니다.');
+      if(method==='DELETE'){await statement(db,"UPDATE concept_terms SET hidden=1,source='manual',updated_at=? WHERE id=? AND user_id=?",now(),current.id,user.id).run();return response({deleted:true});}
       const body=await readBody(request),term=text(body.term??current.term,'term',200),definition=text(body.definition??current.definition,'definition',2000);
+      const highlighted=body.highlighted===undefined?current.highlighted:bool(body.highlighted,'highlighted');
       const aliases=stringList(body.aliases??parse(current.aliases,[]),'aliases',15);
       if(normalizeName(term)!==normalizeName(current.term)&&!aliases.some(a=>normalizeName(a)===normalizeName(current.term)))aliases.push(current.term);
       if(aliases.length>15)fail(400,'invalid_input','이전 이름을 포함해 다른 이름은 15개까지 저장할 수 있습니다.');
       const names=new Set([term,...aliases].map(normalizeName));
       const conflicts=(await all(db,'SELECT * FROM concept_terms WHERE concept_id=? AND user_id=? AND id<>?',match[1],user.id,current.id)).some(t=>[t.term,...parse(t.aliases,[])].some(n=>names.has(normalizeName(n))));
       if(conflicts)fail(409,'term_conflict','이 노드에 같은 이름이나 별칭의 용어가 이미 있어요.');
-      await statement(db,"UPDATE concept_terms SET name_key=?,term=?,definition=?,aliases=?,source='manual',updated_at=? WHERE id=? AND user_id=?",normalizeName(term),term,definition,JSON.stringify(aliases),now(),current.id,user.id).run();
-      return response({id:current.id,term,definition,aliases,source:'manual',concept_id:null,evidence_ids:[]});
+      await statement(db,"UPDATE concept_terms SET name_key=?,term=?,definition=?,aliases=?,highlighted=?,hidden=0,source='manual',updated_at=? WHERE id=? AND user_id=?",normalizeName(term),term,definition,JSON.stringify(aliases),highlighted,now(),current.id,user.id).run();
+      return response({id:current.id,term,definition,aliases,highlighted:!!highlighted,source:'manual',concept_id:null,evidence_ids:[]});
     }
     match=path.match(/^\/concepts\/([^/]+)\/terms$/);
     if(match&&method==='POST'){
       await ownedConcept(db,user.id,match[1]);const body=await readBody(request);const term=text(body.term,'term',200),definition=text(body.definition,'definition',2000),aliases=stringList(body.aliases??[],'aliases',15),timestamp=now();const names=new Set([term,...aliases].map(normalizeName));const existing=(await all(db,'SELECT * FROM concept_terms WHERE concept_id=? AND user_id=?',match[1],user.id)).find(t=>[t.term,...parse(t.aliases,[])].some(n=>names.has(normalizeName(n))));const nameKey=existing?.name_key||normalizeName(term);
-      await statement(db,"INSERT INTO concept_terms (id,user_id,concept_id,name_key,term,definition,aliases,source,created_at,updated_at) VALUES (?,?,?,?,?,?,?,'manual',?,?) ON CONFLICT(concept_id,name_key) DO UPDATE SET term=excluded.term,definition=excluded.definition,aliases=excluded.aliases,source='manual',updated_at=excluded.updated_at",id('term'),user.id,match[1],nameKey,term,definition,JSON.stringify(aliases),timestamp,timestamp).run();
-      const t=await first(db,'SELECT * FROM concept_terms WHERE concept_id=? AND name_key=? AND user_id=?',match[1],nameKey,user.id);return response({id:t.id,term:t.term,definition:t.definition,aliases:parse(t.aliases,[]),source:t.source,concept_id:null,evidence_ids:[]},201);
+      const hidden=body.hidden===undefined?0:bool(body.hidden,'hidden'),highlighted=body.highlighted===undefined?(existing?.highlighted||0):bool(body.highlighted,'highlighted');
+      await statement(db,"INSERT INTO concept_terms (id,user_id,concept_id,name_key,term,definition,aliases,source,created_at,updated_at,hidden,highlighted) VALUES (?,?,?,?,?,?,?,'manual',?,?,?,?) ON CONFLICT(concept_id,name_key) DO UPDATE SET term=excluded.term,definition=excluded.definition,aliases=excluded.aliases,hidden=excluded.hidden,highlighted=excluded.highlighted,source='manual',updated_at=excluded.updated_at",id('term'),user.id,match[1],nameKey,term,definition,JSON.stringify(aliases),timestamp,timestamp,hidden,highlighted).run();
+      const t=await first(db,'SELECT * FROM concept_terms WHERE concept_id=? AND name_key=? AND user_id=?',match[1],nameKey,user.id);return response({id:t.id,term:t.term,definition:t.definition,aliases:parse(t.aliases,[]),source:t.source,hidden:!!t.hidden,highlighted:!!t.highlighted,concept_id:null,evidence_ids:[]},201);
     }
     match=path.match(/^\/concepts\/([^/]+)\/entries$/);
     if(match&&method==='GET'){await ownedConcept(db,user.id,match[1]);return response({entries:await conceptEntries(db,user.id,match[1])});}
     match=path.match(/^\/concepts\/([^/]+)\/summarize$/);
     if(match&&method==='POST'){await readBody(request);const job=await enqueue(db,user.id,match[1]);return response({job:safeJob(job)},202);}
     match=path.match(/^\/entries\/([^/]+)$/);
+    if(match&&method==='DELETE'){
+      const entry=await first(db,'SELECT id FROM entries WHERE id=? AND user_id=?',match[1],user.id);if(!entry)fail(404,'not_found','기록을 찾을 수 없습니다.');
+      const concepts=(await all(db,'SELECT concept_id FROM entry_concepts WHERE entry_id=?',entry.id)).map(r=>r.concept_id);
+      await db.batch([
+        statement(db,'DELETE FROM entry_concepts WHERE entry_id=?',entry.id),
+        statement(db,'DELETE FROM idempotency WHERE user_id=? AND entry_id=?',user.id,entry.id),
+        statement(db,'DELETE FROM entries WHERE id=? AND user_id=?',entry.id,user.id),
+        ...revisionStatements(db,user.id,concepts,now()),
+        ...concepts.map(c=>statement(db,'DELETE FROM summary_revisions WHERE concept_id=? AND user_id=?',c,user.id)),
+        ...concepts.map(c=>statement(db,"UPDATE jobs SET status='superseded' WHERE concept_id=? AND user_id=? AND status='pending' AND NOT EXISTS (SELECT 1 FROM entry_concepts WHERE concept_id=?)",c,user.id,c)),
+      ]);return response({deleted:true});
+    }
     if(match&&method==='PATCH')return await updateEntry(request,db,user,match[1],await readBody(request));
     if(path==='/entries'&&method==='POST')return await createEntry(request,db,user,await readBody(request));
     if(path==='/relations'&&method==='POST'){
@@ -362,8 +380,8 @@ function openapi(origin) {
   const schemas = {
     ConceptInput: object({title:{type:'string',minLength:1,maxLength:200},aliases:strings,category:{type:'string',maxLength:80},description:{type:'string',maxLength:10000}},['title']),
     ConceptUpdate: object({title:string,aliases:strings,category:string,description:string,x:{type:'number'},y:{type:'number'}}),
-    EntryInput: object({concept_ids:{type:'array',minItems:1,maxItems:20,items:string},content:{type:'string',maxLength:80000},title:{type:'string',maxLength:300},url:{type:'string',maxLength:4000,description:'http 또는 https 링크. 링크 본문은 자동 수집하지 않습니다.'},subject_period:{type:'string',maxLength:100,description:'내용이 다루는 역사적 시기. 저장 시각과 별개입니다.'},source:{type:'string',maxLength:100,default:'api'}},['concept_ids']),
-    EntryUpdate: object({concept_ids:{type:'array',minItems:1,maxItems:20,items:string},content:{type:'string',maxLength:80000},title:{type:'string',maxLength:300},url:{type:'string',maxLength:4000},subject_period:{type:'string',maxLength:100}}),
+    EntryInput: object({highlighted:{type:'boolean'},concept_ids:{type:'array',minItems:1,maxItems:20,items:string},content:{type:'string',maxLength:80000},title:{type:'string',maxLength:300},url:{type:'string',maxLength:4000,description:'http 또는 https 링크. 링크 본문은 자동 수집하지 않습니다.'},subject_period:{type:'string',maxLength:100,description:'내용이 다루는 역사적 시기. 저장 시각과 별개입니다.'},source:{type:'string',maxLength:100,default:'api'}},['concept_ids']),
+    EntryUpdate: object({highlighted:{type:'boolean'},concept_ids:{type:'array',minItems:1,maxItems:20,items:string},content:{type:'string',maxLength:80000},title:{type:'string',maxLength:300},url:{type:'string',maxLength:4000},subject_period:{type:'string',maxLength:100}}),
     RelationInput: object({source_id:string,target_id:string,type:{type:'string',default:'관련됨'}},['source_id','target_id']),
     Term: object({term:string,definition:string,concept_id:{type:['string','null']},evidence_ids:strings},['term','definition','evidence_ids']),
     Feature: object({title:string,description:string,evidence_ids:strings},['title','description','evidence_ids']),
@@ -371,7 +389,7 @@ function openapi(origin) {
     JobClaimInput: object({worker_id:string},['worker_id']),
     JobCompleteInput: object({lease_token:string,summary:ref('Summary')},['lease_token','summary']),
     JobFailInput: object({lease_token:string,error:{type:'string',maxLength:2000}},['lease_token','error']),
-    TermInput: object({term:{type:'string',minLength:1,maxLength:200},definition:{type:'string',minLength:1,maxLength:2000},aliases:strings},['term','definition']),
+    TermInput: object({highlighted:{type:'boolean'},hidden:{type:'boolean'},term:{type:'string',minLength:1,maxLength:200},definition:{type:'string',minLength:1,maxLength:2000},aliases:strings},['term','definition']),
     AgentInput: object({prompt:{type:'string',minLength:1,maxLength:4000},client_id:{type:'string',minLength:1,maxLength:100},thread_id:string},['prompt','client_id']),
     GraphNode: object({key:string,title:string,category:string,description:string,aliases:strings,terms:{type:'array',maxItems:20,items:ref('TermInput')},existing_id:{type:['string','null']}},['key','title','category','description','aliases']),
     GraphEdge: object({source_key:string,target_key:string,type:{type:'string',enum:['parent_of','related','prerequisite']}},['source_key','target_key','type']),
@@ -398,8 +416,8 @@ function openapi(origin) {
       '/agent/requests/{id}/fail':{parameters:idParam,post:op('failAgentRequest','생성 실패 보고','JobFailInput')},
       '/agent/requests/{id}/retry':{parameters:idParam,post:op('retryAgentRequest','실패한 요청 재시도','Empty')},
       '/search':{get:{...op('searchKnowledge','전체 노드와 내부 용어 검색'),parameters:[{name:'q',in:'query',required:true,schema:{type:'string',maxLength:200}}]}},
-      '/concepts/{id}/terms/{termId}':{parameters:[...idParam,{name:'termId',in:'path',required:true,schema:string}],patch:op('updateConceptTerm','내부 용어 수정 · 이전 이름은 별칭으로 보존','TermInput')},
-      '/entries/{id}':{parameters:idParam,patch:op('updateEntry','기록 수정 · 연결 개념의 요약 재등록','EntryUpdate')},
+      '/concepts/{id}/terms/{termId}':{parameters:[...idParam,{name:'termId',in:'path',required:true,schema:string}],delete:op('deleteConceptTerm','내부 용어 삭제 · 재생성 방지'),patch:op('updateConceptTerm','내부 용어 수정 · 이전 이름은 별칭으로 보존','TermInput')},
+      '/entries/{id}':{parameters:idParam,delete:op('deleteEntry','기록 삭제 및 관련 요약 무효화'),patch:op('updateEntry','기록 수정 · 연결 개념의 요약 재등록','EntryUpdate')},
       '/concepts/{id}/terms':{parameters:idParam,post:op('saveConceptTerm','노드 내부 용어 작성·수정','TermInput',201)},
       '/bootstrap':{get:op('getBootstrap','전체 지도와 기록 조회')},
       '/concepts':{get:{...op('searchConcepts','개념과 별칭 검색'),parameters:[{name:'q',in:'query',schema:string}]},post:op('createConcept','개념 생성','ConceptInput',201)},
