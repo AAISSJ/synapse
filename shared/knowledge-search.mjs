@@ -3,7 +3,7 @@ import {normalizeName} from './graph-plan.mjs';
 export function collectTerms(concept){
  if(!concept)return[];const map=new Map();
  for(const t of concept.terms||[]){if(!t?.term)continue;const key=normalizeName(t.term);map.set(key,{...t,id:t.id||`term:${concept.id}:${key}`,aliases:t.aliases||[],source:t.source||'manual',evidence_ids:t.evidence_ids||[]});}
- for(const t of concept.summary?.terms||[]){if(!t?.term)continue;const key=normalizeName(t.term),prior=map.get(key);if(prior){prior.aliases=[...new Set([...prior.aliases,...(t.aliases||[])])];prior.evidence_ids=[...new Set([...prior.evidence_ids,...(t.evidence_ids||[])])];}else map.set(key,{...t,id:`summary:${concept.id}:${key}`,aliases:t.aliases||[],source:'summary',evidence_ids:t.evidence_ids||[]});}
+ for(const t of concept.summary?.terms||[]){if(!t?.term)continue;const key=normalizeName(t.term),names=new Set([t.term,...(t.aliases||[])].map(normalizeName)),prior=[...map.values()].find(p=>[p.term,...p.aliases].some(n=>names.has(normalizeName(n))));if(prior){prior.aliases=[...new Set([...prior.aliases,...(t.aliases||[])])];prior.evidence_ids=[...new Set([...prior.evidence_ids,...(t.evidence_ids||[])])];}else map.set(key,{...t,id:`summary:${concept.id}:${key}`,aliases:t.aliases||[],source:'summary',evidence_ids:t.evidence_ids||[]});}
  return [...map.values()];
 }
 export function conceptSearchText(c){return[c.title,...(c.aliases||[]),c.category,c.description,...collectTerms(c).flatMap(t=>[t.term,...t.aliases,t.definition])].filter(Boolean).join(' ');}

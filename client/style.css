@@ -695,3 +695,12 @@ button.term-title:hover { color: #326728; text-decoration: underline; }
  .expanded-sidebar .sidebar .profile-text strong { overflow:hidden; text-overflow:ellipsis; }
 }
 @media(max-width:760px) { .panel-resizer { display:none; } }
+
+.detail-title-row { display:flex; align-items:flex-start; gap:12px; justify-content:space-between; }
+.detail-title-row .detail-title { min-width:0; overflow-wrap:anywhere; }
+.detail-title-row .section-action { flex-shrink:0; margin-top:6px; }
+.term-heading-row { display:flex; align-items:center; gap:4px; }
+.term-heading-row .term-top { flex:1; min-width:0; }
+.term-edit { flex-shrink:0; color:#7b8c70; }
+.entry-edit { float:right; margin:0 0 8px 10px; }
+.timeline-card .entry-title { overflow-wrap:anywhere; }

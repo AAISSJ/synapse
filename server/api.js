@@ -145,6 +145,34 @@ async function createEntry(request, db, user, body) {
   return response({entry: {id: entryId,title,content,url,recorded_at: timestamp,subject_period: subjectPeriod,source,concept_ids: conceptIds},job_ids: jobIds}, 201);
 }
 
+// Editing evidence invalidates both pending and leased work for every affected concept.
+function revisionStatements(db,userId,conceptIds,timestamp){
+  return conceptIds.flatMap(conceptId=>[
+    statement(db,'UPDATE concepts SET revision=revision+1 WHERE id=? AND user_id=?',conceptId,userId),
+    statement(db,"UPDATE jobs SET status='superseded',updated_at=? WHERE concept_id=? AND user_id=? AND status IN ('pending','running','failed')",timestamp,conceptId,userId),
+    statement(db,"INSERT INTO jobs (id,user_id,concept_id,revision,status,attempts,created_at,updated_at) SELECT ?,user_id,id,revision,'pending',0,?,? FROM concepts WHERE id=? AND user_id=?",id('job'),timestamp,timestamp,conceptId,userId),
+  ]);
+}
+async function updateEntry(request,db,user,entryId,body){
+  const current=await first(db,'SELECT * FROM entries WHERE id=? AND user_id=?',entryId,user.id);
+  if(!current)fail(404,'not_found','기록을 찾을 수 없습니다.');
+  const previous=(await all(db,'SELECT concept_id FROM entry_concepts WHERE entry_id=?',entryId)).map(r=>r.concept_id);
+  const conceptIds=stringList(body.concept_ids??previous,'concept_ids',20);
+  if(!conceptIds.length)fail(400,'concept_required','기록할 개념을 선택해주세요.');
+  for(const conceptId of conceptIds)await ownedConcept(db,user.id,conceptId);
+  const content=text(body.content??current.content,'content',80000,true),title=text(body.title??current.title,'title',300,true),url=text(body.url??current.url,'url',4000,true),subjectPeriod=text(body.subject_period??current.subject_period,'subject_period',100,true);
+  if(!content&&!url)fail(400,'empty_entry','메모나 링크를 입력해주세요.');
+  if(url){let parsed;try{parsed=new URL(url);}catch{}if(!parsed||!['http:','https:'].includes(parsed.protocol))fail(400,'invalid_url','http 또는 https 링크를 입력해주세요.');}
+  const changed=content!==current.content||title!==current.title||url!==current.url||subjectPeriod!==current.subject_period||[...conceptIds].sort().join(',')!==[...previous].sort().join(',');
+  if(changed){const timestamp=now();await db.batch([
+    statement(db,'UPDATE entries SET title=?,content=?,url=?,subject_period=? WHERE id=? AND user_id=?',title,content,url,subjectPeriod,entryId,user.id),
+    statement(db,'DELETE FROM entry_concepts WHERE entry_id=?',entryId),
+    ...conceptIds.map(c=>statement(db,'INSERT INTO entry_concepts (entry_id,concept_id) VALUES (?,?)',entryId,c)),
+    ...revisionStatements(db,user.id,[...new Set([...previous,...conceptIds])],timestamp),
+  ]);}
+  return response({entry:entryData({...current,title,content,url,subject_period:subjectPeriod},conceptIds),changed});
+}
+
 async function claimJob(db, user, body) {
   const workerId = text(body.worker_id, 'worker_id', 200);
   const timestamp = now(); const token = tokenValue(); const until = new Date(Date.now() + LEASE_MS).toISOString();
@@ -273,7 +301,25 @@ export async function handleApi(request, env) {
       const x=body.x??current.x,y=body.y??current.y;
       if(typeof x!=='number'||!Number.isFinite(x)||Math.abs(x)>100000||typeof y!=='number'||!Number.isFinite(y)||Math.abs(y)>100000)fail(400,'invalid_position','노드 위치를 확인해주세요.');
       const title=text(body.title??current.title,'title',200);const aliases=stringList(body.aliases??parse(current.aliases,[]),'aliases');const category=text(body.category??current.category,'category',80);const description=text(body.description??current.description,'description',10_000,true);
-      await statement(db,'UPDATE concepts SET title=?,aliases=?,category=?,description=?,x=?,y=? WHERE id=? AND user_id=?',title,JSON.stringify(aliases),category,description,x,y,current.id,user.id).run();return response(conceptData({...current,title,aliases:JSON.stringify(aliases),category,description,x,y}));
+      const metadataChanged=title!==current.title||JSON.stringify(aliases)!==current.aliases||category!==current.category||description!==current.description;
+      const writes=[statement(db,'UPDATE concepts SET title=?,aliases=?,category=?,description=?,x=?,y=? WHERE id=? AND user_id=?',title,JSON.stringify(aliases),category,description,x,y,current.id,user.id)];
+      if(metadataChanged&&await first(db,'SELECT entry_id FROM entry_concepts WHERE concept_id=? LIMIT 1',current.id))writes.push(...revisionStatements(db,user.id,[current.id],now()));
+      await db.batch(writes);return response(conceptData(await ownedConcept(db,user.id,current.id)));
+    }
+    match=path.match(/^\/concepts\/([^/]+)\/terms\/([^/]+)$/);
+    if(match&&method==='PATCH'){
+      await ownedConcept(db,user.id,match[1]);
+      const current=await first(db,'SELECT * FROM concept_terms WHERE id=? AND concept_id=? AND user_id=?',match[2],match[1],user.id);
+      if(!current)fail(404,'not_found','용어를 찾을 수 없습니다.');
+      const body=await readBody(request),term=text(body.term??current.term,'term',200),definition=text(body.definition??current.definition,'definition',2000);
+      const aliases=stringList(body.aliases??parse(current.aliases,[]),'aliases',15);
+      if(normalizeName(term)!==normalizeName(current.term)&&!aliases.some(a=>normalizeName(a)===normalizeName(current.term)))aliases.push(current.term);
+      if(aliases.length>15)fail(400,'invalid_input','이전 이름을 포함해 다른 이름은 15개까지 저장할 수 있습니다.');
+      const names=new Set([term,...aliases].map(normalizeName));
+      const conflicts=(await all(db,'SELECT * FROM concept_terms WHERE concept_id=? AND user_id=? AND id<>?',match[1],user.id,current.id)).some(t=>[t.term,...parse(t.aliases,[])].some(n=>names.has(normalizeName(n))));
+      if(conflicts)fail(409,'term_conflict','이 노드에 같은 이름이나 별칭의 용어가 이미 있어요.');
+      await statement(db,"UPDATE concept_terms SET name_key=?,term=?,definition=?,aliases=?,source='manual',updated_at=? WHERE id=? AND user_id=?",normalizeName(term),term,definition,JSON.stringify(aliases),now(),current.id,user.id).run();
+      return response({id:current.id,term,definition,aliases,source:'manual',concept_id:null,evidence_ids:[]});
     }
     match=path.match(/^\/concepts\/([^/]+)\/terms$/);
     if(match&&method==='POST'){
@@ -285,6 +331,8 @@ export async function handleApi(request, env) {
     if(match&&method==='GET'){await ownedConcept(db,user.id,match[1]);return response({entries:await conceptEntries(db,user.id,match[1])});}
     match=path.match(/^\/concepts\/([^/]+)\/summarize$/);
     if(match&&method==='POST'){await readBody(request);const job=await enqueue(db,user.id,match[1]);return response({job:safeJob(job)},202);}
+    match=path.match(/^\/entries\/([^/]+)$/);
+    if(match&&method==='PATCH')return await updateEntry(request,db,user,match[1],await readBody(request));
     if(path==='/entries'&&method==='POST')return await createEntry(request,db,user,await readBody(request));
     if(path==='/relations'&&method==='POST'){
       const body=await readBody(request);const sourceId=text(body.source_id,'source_id',100),targetId=text(body.target_id,'target_id',100),type=text(body.type??'관련됨','type',80);
@@ -315,6 +363,7 @@ function openapi(origin) {
     ConceptInput: object({title:{type:'string',minLength:1,maxLength:200},aliases:strings,category:{type:'string',maxLength:80},description:{type:'string',maxLength:10000}},['title']),
     ConceptUpdate: object({title:string,aliases:strings,category:string,description:string,x:{type:'number'},y:{type:'number'}}),
     EntryInput: object({concept_ids:{type:'array',minItems:1,maxItems:20,items:string},content:{type:'string',maxLength:80000},title:{type:'string',maxLength:300},url:{type:'string',maxLength:4000,description:'http 또는 https 링크. 링크 본문은 자동 수집하지 않습니다.'},subject_period:{type:'string',maxLength:100,description:'내용이 다루는 역사적 시기. 저장 시각과 별개입니다.'},source:{type:'string',maxLength:100,default:'api'}},['concept_ids']),
+    EntryUpdate: object({concept_ids:{type:'array',minItems:1,maxItems:20,items:string},content:{type:'string',maxLength:80000},title:{type:'string',maxLength:300},url:{type:'string',maxLength:4000},subject_period:{type:'string',maxLength:100}}),
     RelationInput: object({source_id:string,target_id:string,type:{type:'string',default:'관련됨'}},['source_id','target_id']),
     Term: object({term:string,definition:string,concept_id:{type:['string','null']},evidence_ids:strings},['term','definition','evidence_ids']),
     Feature: object({title:string,description:string,evidence_ids:strings},['title','description','evidence_ids']),
@@ -349,6 +398,8 @@ function openapi(origin) {
       '/agent/requests/{id}/fail':{parameters:idParam,post:op('failAgentRequest','생성 실패 보고','JobFailInput')},
       '/agent/requests/{id}/retry':{parameters:idParam,post:op('retryAgentRequest','실패한 요청 재시도','Empty')},
       '/search':{get:{...op('searchKnowledge','전체 노드와 내부 용어 검색'),parameters:[{name:'q',in:'query',required:true,schema:{type:'string',maxLength:200}}]}},
+      '/concepts/{id}/terms/{termId}':{parameters:[...idParam,{name:'termId',in:'path',required:true,schema:string}],patch:op('updateConceptTerm','내부 용어 수정 · 이전 이름은 별칭으로 보존','TermInput')},
+      '/entries/{id}':{parameters:idParam,patch:op('updateEntry','기록 수정 · 연결 개념의 요약 재등록','EntryUpdate')},
       '/concepts/{id}/terms':{parameters:idParam,post:op('saveConceptTerm','노드 내부 용어 작성·수정','TermInput',201)},
       '/bootstrap':{get:op('getBootstrap','전체 지도와 기록 조회')},
       '/concepts':{get:{...op('searchConcepts','개념과 별칭 검색'),parameters:[{name:'q',in:'query',schema:string}]},post:op('createConcept','개념 생성','ConceptInput',201)},
