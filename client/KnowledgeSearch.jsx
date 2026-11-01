@@ -1,0 +1,15 @@
+import React,{useEffect,useMemo,useRef,useState} from 'react';
+import {Search,X,Network,BookOpen,ArrowUpRight} from 'lucide-react';
+import {searchKnowledge} from '../shared/knowledge-search.mjs';
+export default function KnowledgeSearch({concepts,value,onChange,onPick,inputRef}){
+ const root=useRef(null),list=useRef(null);const [open,setOpen]=useState(false),[active,setActive]=useState(0);
+ const results=useMemo(()=>searchKnowledge(concepts,value,100),[concepts,value]);const visible=open&&!!value.trim();
+ useEffect(()=>{setActive(0);},[value]);
+ useEffect(()=>{const outside=e=>{if(!root.current?.contains(e.target))setOpen(false);};document.addEventListener('pointerdown',outside);return()=>document.removeEventListener('pointerdown',outside);},[]);
+ useEffect(()=>{if(visible)list.current?.children[active]?.scrollIntoView({block:'nearest'});},[active,visible]);
+ const pick=r=>{setOpen(false);onChange('');onPick(r);};
+ const key=e=>{if(e.key==='Escape'){setOpen(false);e.preventDefault();return;}if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();setOpen(true);setActive(n=>results.length?(n+(e.key==='ArrowDown'?1:-1)+results.length)%results.length:0);}if(e.key==='Enter'&&visible&&results[active]){e.preventDefault();pick(results[active]);}};
+ return <div ref={root} className="knowledge-search"><label className="search-box"><Search size={16}/><input ref={inputRef} value={value} onChange={e=>{onChange(e.target.value);setOpen(true);}} onFocus={()=>setOpen(true)} onKeyDown={key} placeholder="노드·용어 검색" aria-label="전체 노드와 용어 검색" maxLength={200} role="combobox" aria-expanded={visible} aria-controls="knowledge-results" aria-autocomplete="list" aria-activedescendant={visible&&results[active]?`knowledge-result-${active}`:undefined}/><span className="keyboard">⌘ K</span>{value&&<button type="button" className="clear-search" aria-label="검색 지우기" onClick={()=>{onChange('');inputRef.current?.focus();}}><X size={12}/></button>}</label>
+ {visible&&<div className="search-results"><div className="search-results-heading"><strong>전체 지식 검색</strong><span>{results.length}개 결과{results.length===100?' · 검색어를 더 구체적으로 입력해 주세요':''}</span></div><div className="search-result-list" id="knowledge-results" role="listbox" ref={list}>{results.length?results.map((r,i)=><button type="button" key={`${r.type}:${r.id}`} id={`knowledge-result-${i}`} className={`search-result ${active===i?'active':''}`} role="option" aria-selected={active===i} onMouseDown={e=>e.preventDefault()} onMouseEnter={()=>setActive(i)} onClick={()=>pick(r)}><span className="search-result-icon">{r.type==='concept'?<Network size={16}/>:<BookOpen size={16}/>}</span><span className="search-result-copy"><strong>{r.title}<small>{r.type==='concept'?'노드':'내부 용어'}</small></strong><span>{r.type==='term'?`${r.concept_title} 안의 용어`:r.aliases.join(' · ')||'독립 개념'}{r.description?` · ${r.description}`:''}</span></span><ArrowUpRight size={13}/></button>):<p className="search-no-results">일치하는 노드나 내부 용어가 없어요.</p>}</div><p className="search-results-hint">↑ ↓ 이동 · Enter 열기 · Esc 닫기</p></div>}
+ </div>;
+}

@@ -57,3 +57,7 @@ export const agentThreads = sqliteTable('agent_threads', {
 export const agentRequests = sqliteTable('agent_requests', {
  id:text('id').primaryKey(),userId:text('user_id').notNull().references(()=>users.id),threadId:text('thread_id').notNull().references(()=>agentThreads.id),clientId:text('client_id').notNull(),prompt:text('prompt').notNull(),status:text('status').notNull().default('pending'),reply:text('reply').notNull().default(''),resultJson:text('result_json'),error:text('error'),workerId:text('worker_id'),leaseToken:text('lease_token'),leaseUntil:text('lease_until'),attempts:integer('attempts').notNull().default(0),createdAt:text('created_at').notNull(),updatedAt:text('updated_at').notNull(),
 },t=>[uniqueIndex('agent_request_client').on(t.userId,t.clientId),index('agent_requests_user_status').on(t.userId,t.status),index('agent_requests_thread').on(t.threadId)]);
+
+export const conceptTerms = sqliteTable('concept_terms', {
+ id:text('id').primaryKey(),userId:text('user_id').notNull().references(()=>users.id),conceptId:text('concept_id').notNull().references(()=>concepts.id),nameKey:text('name_key').notNull(),term:text('term').notNull(),definition:text('definition').notNull(),aliases:text('aliases').notNull().default('[]'),source:text('source').notNull().default('manual'),createdAt:text('created_at').notNull(),updatedAt:text('updated_at').notNull(),
+},t=>[uniqueIndex('concept_term_name').on(t.conceptId,t.nameKey),index('concept_terms_owner').on(t.userId)]);

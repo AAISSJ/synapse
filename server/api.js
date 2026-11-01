@@ -1,3 +1,5 @@
+import {normalizeName} from '../shared/graph-plan.mjs';
+import {searchKnowledge,conceptSearchText} from '../shared/knowledge-search.mjs';
 import { routeAgent } from './agent.js';
 const PREFIX = '/api/v1';
 const MAX_BODY = 180_000;
@@ -65,9 +67,9 @@ async function ownedConcept(db, userId, conceptId) {
   return concept;
 }
 
-function conceptData(row, summary = null) {
+function conceptData(row, summary = null, terms = []) {
   const { user_id, ...rest } = row;
-  return { ...rest, aliases: parse(row.aliases, []), summary };
+  return { ...rest, aliases: parse(row.aliases, []), summary, terms };
 }
 function entryData(row, conceptIds) {
   const { user_id, ...rest } = row;
@@ -76,18 +78,19 @@ function entryData(row, conceptIds) {
 const safeJob = job => { const { user_id, lease_token, worker_id, ...rest } = job; return rest; };
 
 async function loadData(db, user) {
-  const [cs, es, links, rs, summaries, js] = await Promise.all([
+  const [cs, es, links, rs, summaries, js, terms] = await Promise.all([
     all(db, 'SELECT c.*, (SELECT COUNT(*) FROM entry_concepts ec WHERE ec.concept_id=c.id) AS entry_count FROM concepts c WHERE c.user_id=? ORDER BY c.created_at,c.id', user.id),
     all(db, 'SELECT * FROM entries WHERE user_id=? ORDER BY recorded_at DESC,id DESC', user.id),
     all(db, 'SELECT ec.* FROM entry_concepts ec JOIN entries e ON e.id=ec.entry_id WHERE e.user_id=?', user.id),
     all(db, 'SELECT id,source_id,target_id,type FROM relations WHERE user_id=?', user.id),
     all(db, 'SELECT s.* FROM summary_revisions s WHERE s.user_id=? AND s.revision=(SELECT MAX(s2.revision) FROM summary_revisions s2 WHERE s2.concept_id=s.concept_id)', user.id),
     all(db, 'SELECT * FROM jobs WHERE user_id=? ORDER BY created_at DESC LIMIT 100', user.id),
+    all(db, 'SELECT * FROM concept_terms WHERE user_id=? ORDER BY created_at,id', user.id),
   ]);
   const summaryMap = new Map(summaries.map(s => [s.concept_id, { ...parse(s.payload, {}), revision: s.revision, generated_at: s.generated_at }]));
   const entryLinks = new Map();
   for (const link of links) entryLinks.set(link.entry_id, [...(entryLinks.get(link.entry_id) || []), link.concept_id]);
-  return { concepts: cs.map(c => conceptData(c, summaryMap.get(c.id) || null)), entries: es.map(e => entryData(e, entryLinks.get(e.id) || [])), relations: rs, jobs: js.map(safeJob), user: {name: user.name}, demo: !!(await first(db, 'SELECT demo_loaded FROM users WHERE id=?', user.id))?.demo_loaded };
+  return { concepts: cs.map(c => conceptData(c, summaryMap.get(c.id) || null, terms.filter(t=>t.concept_id===c.id).map(t=>({id:t.id,term:t.term,definition:t.definition,aliases:parse(t.aliases,[]),source:t.source,concept_id:null,evidence_ids:[]})))), entries: es.map(e => entryData(e, entryLinks.get(e.id) || [])), relations: rs, jobs: js.map(safeJob), user: {name: user.name}, demo: !!(await first(db, 'SELECT demo_loaded FROM users WHERE id=?', user.id))?.demo_loaded };
 }
 
 async function conceptEntries(db, userId, conceptId) {
@@ -236,6 +239,7 @@ export async function handleApi(request, env) {
     const user = await authenticate(request, db);
     const agentResponse=await routeAgent(request,db,user,path,method,readBody);
     if(agentResponse)return agentResponse;
+    if(path==='/search'&&method==='GET'){const q=url.searchParams.get('q')||'';if(q.length>200)fail(400,'invalid_query','검색어는 200자 이내로 입력해주세요.');const data=await loadData(db,user);return response({results:searchKnowledge(data.concepts,q)});}
     if (path === '/bootstrap' && method === 'GET') return response(await loadData(db,user));
     if (path === '/export' && method === 'GET') return response({format:'atlas-knowledge-export',version:1,exported_at:now(),...await loadData(db,user)},200,{'Content-Disposition':'attachment; filename="synapse-knowledge.json"'});
     if (path === '/settings' && method === 'GET') return response({tokens:await all(db,'SELECT id,name,prefix,created_at FROM api_tokens WHERE user_id=? ORDER BY created_at DESC',user.id),worker:{engine:'codex-sdk',requires_companion:true,lease_minutes:15}});
@@ -249,7 +253,7 @@ export async function handleApi(request, env) {
     if (match && method === 'DELETE') { if(user.bearer) fail(403,'browser_required','토큰 폐기는 로그인한 웹 화면에서만 가능합니다.'); await statement(db,'DELETE FROM api_tokens WHERE id=? AND user_id=?',match[1],user.id).run(); return response({deleted:true}); }
     if (path === '/concepts' && method === 'GET') {
       const data = await loadData(db,user); const q=(url.searchParams.get('q')||'').trim().toLocaleLowerCase();
-      return response({concepts:data.concepts.filter(c=>!q||[c.title,...c.aliases,c.description].some(t=>t.toLocaleLowerCase().includes(q)))});
+      return response({concepts:data.concepts.filter(c=>!q||normalizeName(conceptSearchText(c)).includes(normalizeName(q)))});
     }
     if (path === '/concepts' && method === 'POST') {
       const body=await readBody(request); const title=text(body.title,'title',200); const aliases=stringList(body.aliases??[],'aliases'); const category=text(body.category??'일반','category',80); const description=text(body.description,'description',10_000,true);
@@ -267,6 +271,12 @@ export async function handleApi(request, env) {
       if(typeof x!=='number'||!Number.isFinite(x)||Math.abs(x)>100000||typeof y!=='number'||!Number.isFinite(y)||Math.abs(y)>100000)fail(400,'invalid_position','노드 위치를 확인해주세요.');
       const title=text(body.title??current.title,'title',200);const aliases=stringList(body.aliases??parse(current.aliases,[]),'aliases');const category=text(body.category??current.category,'category',80);const description=text(body.description??current.description,'description',10_000,true);
       await statement(db,'UPDATE concepts SET title=?,aliases=?,category=?,description=?,x=?,y=? WHERE id=? AND user_id=?',title,JSON.stringify(aliases),category,description,x,y,current.id,user.id).run();return response(conceptData({...current,title,aliases:JSON.stringify(aliases),category,description,x,y}));
+    }
+    match=path.match(/^\/concepts\/([^/]+)\/terms$/);
+    if(match&&method==='POST'){
+      await ownedConcept(db,user.id,match[1]);const body=await readBody(request);const term=text(body.term,'term',200),definition=text(body.definition,'definition',2000),aliases=stringList(body.aliases??[],'aliases',15),timestamp=now();const names=new Set([term,...aliases].map(normalizeName));const existing=(await all(db,'SELECT * FROM concept_terms WHERE concept_id=? AND user_id=?',match[1],user.id)).find(t=>[t.term,...parse(t.aliases,[])].some(n=>names.has(normalizeName(n))));const nameKey=existing?.name_key||normalizeName(term);
+      await statement(db,"INSERT INTO concept_terms (id,user_id,concept_id,name_key,term,definition,aliases,source,created_at,updated_at) VALUES (?,?,?,?,?,?,?,'manual',?,?) ON CONFLICT(concept_id,name_key) DO UPDATE SET term=excluded.term,definition=excluded.definition,aliases=excluded.aliases,source='manual',updated_at=excluded.updated_at",id('term'),user.id,match[1],nameKey,term,definition,JSON.stringify(aliases),timestamp,timestamp).run();
+      const t=await first(db,'SELECT * FROM concept_terms WHERE concept_id=? AND name_key=? AND user_id=?',match[1],nameKey,user.id);return response({id:t.id,term:t.term,definition:t.definition,aliases:parse(t.aliases,[]),source:t.source,concept_id:null,evidence_ids:[]},201);
     }
     match=path.match(/^\/concepts\/([^/]+)\/entries$/);
     if(match&&method==='GET'){await ownedConcept(db,user.id,match[1]);return response({entries:await conceptEntries(db,user.id,match[1])});}
@@ -309,8 +319,9 @@ function openapi(origin) {
     JobClaimInput: object({worker_id:string},['worker_id']),
     JobCompleteInput: object({lease_token:string,summary:ref('Summary')},['lease_token','summary']),
     JobFailInput: object({lease_token:string,error:{type:'string',maxLength:2000}},['lease_token','error']),
+    TermInput: object({term:{type:'string',minLength:1,maxLength:200},definition:{type:'string',minLength:1,maxLength:2000},aliases:strings},['term','definition']),
     AgentInput: object({prompt:{type:'string',minLength:1,maxLength:4000},client_id:{type:'string',minLength:1,maxLength:100},thread_id:string},['prompt','client_id']),
-    GraphNode: object({key:string,title:string,category:string,description:string,aliases:strings,existing_id:{type:['string','null']}},['key','title','category','description','aliases']),
+    GraphNode: object({key:string,title:string,category:string,description:string,aliases:strings,terms:{type:'array',maxItems:20,items:ref('TermInput')},existing_id:{type:['string','null']}},['key','title','category','description','aliases']),
     GraphEdge: object({source_key:string,target_key:string,type:{type:'string',enum:['parent_of','related','prerequisite']}},['source_key','target_key','type']),
     GraphPlan: object({message:string,nodes:{type:'array',minItems:1,maxItems:40,items:ref('GraphNode')},relations:{type:'array',maxItems:100,items:ref('GraphEdge')}},['message','nodes','relations']),
     AgentCompleteInput: object({lease_token:string,plan:ref('GraphPlan')},['lease_token','plan']),
@@ -334,6 +345,8 @@ function openapi(origin) {
       '/agent/requests/{id}/complete':{parameters:idParam,post:op('applyAgentGraph','검증한 노드와 관계를 한 번만 적용','AgentCompleteInput')},
       '/agent/requests/{id}/fail':{parameters:idParam,post:op('failAgentRequest','생성 실패 보고','JobFailInput')},
       '/agent/requests/{id}/retry':{parameters:idParam,post:op('retryAgentRequest','실패한 요청 재시도','Empty')},
+      '/search':{get:{...op('searchKnowledge','전체 노드와 내부 용어 검색'),parameters:[{name:'q',in:'query',required:true,schema:{type:'string',maxLength:200}}]}},
+      '/concepts/{id}/terms':{parameters:idParam,post:op('saveConceptTerm','노드 내부 용어 작성·수정','TermInput',201)},
       '/bootstrap':{get:op('getBootstrap','전체 지도와 기록 조회')},
       '/concepts':{get:{...op('searchConcepts','개념과 별칭 검색'),parameters:[{name:'q',in:'query',schema:string}]},post:op('createConcept','개념 생성','ConceptInput',201)},
       '/concepts/{id}':{parameters:idParam,get:op('getConcept','개념과 현재 요약 조회'),patch:op('updateConcept','개념과 위치 수정','ConceptUpdate')},

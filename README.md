@@ -45,3 +45,9 @@ API는 `/api/v1/openapi.json`, 상태 확인은 `/health`입니다. 새 사용�
 이 기능은 최신 CLI의 `node cli/kg.mjs worker`를 실행한 Codex 인증 환경이 필요합니다. 웹에서 CLI ZIP을 다시 받아 업데이트할 수 있습니다. 작업자가 없으면 대기 상태로 표시되며, 생성된 것처럼 표시하지 않습니다. 실패한 작업은 채팅에서 재시도할 수 있습니다.
 
 관련 API는 `/api/v1/agent/threads`, `/agent/requests`, `/agent/claim`, `/agent/requests/:id/complete`이며 OpenAPI에 명세가 포함되어 있습니다. 생성은 한 번에 최대 40개 개념이고, 관계의 순환·소유권·임대 토큰을 서버에서 검증합니다.
+
+## 노드와 내부 용어 · 통합 검색
+
+독립적으로 학습할 기술은 노드로, 그 기술 안에서 설명할 구성 요소는 내부 용어로 정리합니다. 예를 들어 Kubernetes와 Docker는 별도 노드이며 Pod·Deployment·Namespace는 Kubernetes의 내부 용어입니다. 에이전트가 이 기준으로 분류하며 사용자가 명시적으로 독립 노드를 요청하면 그 요청을 우선합니다. 기존 작업자는 최신 CLI로 교체해 `node cli/kg.mjs worker`를 실행해야 새 용어 생성 규칙을 사용합니다.
+
+상단 검색은 전체 지도의 노드·내부 용어·최신 메모 요약의 용어와 별칭을 함께 찾습니다. 용어 검색 결과를 선택하면 소속 노드로 이동해 설명을 펼칩니다. 노드의 **용어 추가**에서 직접 정리할 수 있으며 AI는 직접 작성한 정의를 덮어쓰지 않습니다. API에서는 `GET /api/v1/search?q=Pod`, `POST /api/v1/concepts/:id/terms`를 제공합니다.
