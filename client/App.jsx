@@ -16,6 +16,7 @@ import {learningCards} from '../shared/learning-cards.mjs';
 import AgentChat from './AgentChat.jsx';
 import KnowledgeSearch from './KnowledgeSearch.jsx';
 import {collectTerms,conceptSearchText} from '../shared/knowledge-search.mjs';
+import {compactLayout} from '../shared/graph-layout.mjs';
 import {hierarchyRoots,hierarchyPeers} from '../shared/graph-hierarchy.mjs';
 import {normalizeName} from '../shared/graph-plan.mjs';
 
@@ -115,7 +116,7 @@ function Modal({ title, subtitle, children, close, wide = false, footer }) {
   </div>;
 }
 
-function Graph({ concepts, relations, hierarchyRelations=relations, peerMode=false, peerIds=[], onEndPeerMode, onPeerDetails, selectedId, onSelect, onPositionChange, query, category, categories }) {
+function Graph({ concepts, relations, hierarchyRelations=relations, peerMode=false, peerIds=[], onEndPeerMode, onPeerDetails, selectedId, onSelect, onPositionChange, onLayoutChange, query, category, categories }) {
   const peerSet=useMemo(()=>new Set(peerIds),[peerIds.join('|')]);
   const comparisonView=useRef(null);
   const hierarchyTop=useMemo(()=>hierarchyRoots(hierarchyRelations),[hierarchyRelations]);
@@ -127,7 +128,9 @@ function Graph({ concepts, relations, hierarchyRelations=relations, peerMode=fal
   const layoutRef = useRef({});
   const [positions, setPositions] = useState({});
   const [view, setView] = useState(viewRef.current);
-  const [placementMode, setPlacementMode] = useState(false);
+  const [placementMode, setPlacementMode] = useState(true);
+  const [layoutBusy,setLayoutBusy]=useState(false);
+  const [previousLayout,setPreviousLayout]=useState(null);
   const [dragging, setDragging] = useState(false);
   const neighbors = useMemo(() => new Set(relations.flatMap(r => r.source_id === selectedId ? [r.target_id] : r.target_id === selectedId ? [r.source_id] : [])), [relations, selectedId]);
   const layout = useMemo(() => {
@@ -219,7 +222,7 @@ function Graph({ concepts, relations, hierarchyRelations=relations, peerMode=fal
     };
   };
   const begin = (event, nodeId = null) => {
-    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    if (layoutBusy || (event.pointerType === 'mouse' && event.button !== 0)) return;
     const point = rootPoint(event.clientX, event.clientY);
     if (!point) return;
     event.preventDefault(); event.stopPropagation();
@@ -273,14 +276,22 @@ function Graph({ concepts, relations, hierarchyRelations=relations, peerMode=fal
     else { gesture.current = null; setDragging(false); }
     try { if (svgRef.current.hasPointerCapture(event.pointerId)) svgRef.current.releasePointerCapture(event.pointerId); } catch {}
   };
-  const fitNodes = ids => {
+  const fitNodes = (ids, suppliedLayout=layoutRef.current) => {
     if (pointers.current.size) return;
-    const points = ids?ids.map(id=>layoutRef.current[id]).filter(Boolean):Object.values(layoutRef.current);
+    const points = ids?ids.map(id=>suppliedLayout[id]).filter(Boolean):Object.values(suppliedLayout);
     if (!points.length) return applyView({ x: 0, y: 0, scale: 1 });
     const minX = Math.min(...points.map(p => p.x)) - 170, maxX = Math.max(...points.map(p => p.x)) + 170;
     const minY = Math.min(...points.map(p => p.y)) - 100, maxY = Math.max(...points.map(p => p.y)) + 100;
     const scale = clampScale(Math.min(baseBox.width / (maxX - minX), baseBox.height / (maxY - minY)) * .9);
     applyView({ x: baseBox.x + baseBox.width / 2 - (minX + maxX) / 2 * scale, y: baseBox.y + baseBox.height / 2 - (minY + maxY) / 2 * scale, scale });
+  };
+  const saveLayout=async(undo=false)=>{
+    if(layoutBusy||pointers.current.size)return;
+    const before={...layoutRef.current},rect=svgRef.current?.getBoundingClientRect();
+    const next=undo?previousLayout:compactLayout(concepts,relations,rect?.width/Math.max(1,rect?.height)||1.4);
+    if(!next)return;setLayoutBusy(true);
+    try{await onLayoutChange(next);setPositions(next);setPreviousLayout(undo?null:before);fitNodes(null,next);}
+    catch{}finally{setLayoutBusy(false);}
   };
   const fit=()=>fitNodes(null);
   useEffect(()=>{if(peerMode){if(!comparisonView.current)comparisonView.current={...viewRef.current};fitNodes([selectedId,...peerIds]);}else if(comparisonView.current){applyView(comparisonView.current);comparisonView.current=null;}},[peerMode,selectedId,peerIds.join('|')]);
@@ -328,7 +339,7 @@ function Graph({ concepts, relations, hierarchyRelations=relations, peerMode=fal
     {peerMode&&<div className="peer-graph-banner"><div><span className="peer-legend-line"/><strong>같은 계층 비교</strong><span>{peerIds.length+1}개 개념</span></div><div><button className="peer-mobile-details" onClick={onPeerDetails}>대상 선택·상세</button><button aria-label="지도 비교 해제" onClick={onEndPeerMode}><X size={12}/>해제</button></div></div>}
     <div className="graph-bottom">
       <div className="canvas-legend">{peerMode&&<span className="peer-legend"><i/>보라색 점선 · 비교 대상</span>}{!peerMode&&categories.slice(0, 4).map(cat => <span className="legend-item" key={cat}><i className="legend-dot" style={{ background: colorFor(cat, categories) }} />{cat}</span>)}</div>
-      <div className="zoom-controls"><button className={`gesture-mode-button ${placementMode ? '' : 'active'}`} aria-label="지도 이동 모드" aria-pressed={!placementMode} title="드래그로 지도 이동 · 클릭으로 개념 선택" onClick={() => { if (!pointers.current.size) setPlacementMode(false); }}><Hand size={14} /><span>이동</span></button><button className={`gesture-mode-button ${placementMode ? 'active' : ''}`} aria-label="노드 배치 모드" aria-pressed={placementMode} title="노드를 드래그해 위치 변경" onClick={() => { if (!pointers.current.size) setPlacementMode(true); }}><Move size={14} /><span>배치</span></button><span className="control-divider" /><button className="icon-button" aria-label="축소" onClick={() => zoom(.85)}><ZoomOut size={16} /></button><span className="zoom-value">{Math.round(view.scale * 100)}%</span><button className="icon-button" aria-label="확대" onClick={() => zoom(1.18)}><ZoomIn size={16} /></button><span className="control-divider" /><button className="icon-button" aria-label="지도 전체 보기" title="지도 전체 보기" onClick={fit}><Focus size={17} /></button></div>
+      <div className="zoom-controls"><button className="gesture-mode-button layout-action" disabled={layoutBusy} onClick={()=>saveLayout(false)} title="현재 지도의 개념들을 상하위 관계에 맞춰 모으고 저장"><Network size={14}/><span>{layoutBusy?'저장 중':'자동 정돈'}</span></button><button className="icon-button" aria-label="배치 되돌리기" disabled={layoutBusy||!previousLayout} onClick={()=>saveLayout(true)} title="자동 정돈 전 배치로 되돌리기"><RotateCcw size={14}/></button><span className="control-divider"/><button className={`gesture-mode-button ${placementMode ? '' : 'active'}`} aria-label="지도 이동 모드" aria-pressed={!placementMode} title="드래그로 지도 이동 · 클릭으로 개념 선택" onClick={() => { if (!pointers.current.size) setPlacementMode(false); }}><Hand size={14} /><span>이동</span></button><button className={`gesture-mode-button ${placementMode ? 'active' : ''}`} aria-label="노드 배치 모드" aria-pressed={placementMode} title="노드는 드래그로 배치 · 빈 공간은 지도 이동" onClick={() => { if (!pointers.current.size) setPlacementMode(true); }}><Move size={14} /><span>배치</span></button><span className="control-divider" /><button className="icon-button" aria-label="축소" onClick={() => zoom(.85)}><ZoomOut size={16} /></button><span className="zoom-value">{Math.round(view.scale * 100)}%</span><button className="icon-button" aria-label="확대" onClick={() => zoom(1.18)}><ZoomIn size={16} /></button><span className="control-divider" /><button className="icon-button" aria-label="지도 전체 보기" title="지도 전체 보기" onClick={fit}><Focus size={17} /></button></div>
     </div>
     {(query || category) && <div className="graph-count">{visibleCount}개의 개념이 일치합니다</div>}
   </>;
@@ -618,7 +629,7 @@ export default function App() {
           })}</div> : <div className="directory-empty"><Layers3 size={32}/><h3>{query ? '일치하는 주제가 없어요.' : '큰 주제로 지도를 나눠보세요.'}</h3><p>개념을 만들 때 큰 주제에 DB처럼 이름을 적어주세요.</p><button className="button primary" onClick={() => setModal('concept')}><Plus size={15}/>주제와 개념 추가</button></div>}</div> : view === 'recent' ? <div className="directory-content"><div className="directory-heading"><div><span className="directory-kicker">RECENT KNOWLEDGE</span><h2>최근 기록한 지식 <small>{recent.length}</small></h2><p>같은 개념은 한 번만, 마지막 기록이 최신인 순서로 보여요.</p></div></div>{displayedRecent.length ? <div className="recent-knowledge-list">{displayedRecent.map(c => { const entry = latestRecords.get(c.id); return <button className="recent-knowledge-card recent-knowledge-item" key={c.id} onClick={() => openRecent(c.id)}><span className="topic-card-icon" style={{color:c.color || colorFor(c.category,categories)}}><BookOpen size={20}/></span><div><span className="recent-category">{c.category || '미분류'}</span><h3>{c.title}</h3><p>{entry.title || entry.content || '출처 링크를 기록했어요.'}</p><time dateTime={entry.recorded_at}>{dateLabel(entry.recorded_at,true)}</time></div><ArrowUpRight size={17}/></button>; })}</div> : <div className="directory-empty"><Clock3 size={32}/><h3>{query ? '일치하는 지식이 없어요.' : '아직 쌓인 기록이 없어요.'}</h3><p>메모나 링크를 남기면 최근 지식이 이곳에 모입니다.</p><button className="button primary" onClick={() => setModal(data.concepts.length ? 'entry' : 'concept')}><Plus size={15}/>첫 기록 남기기</button></div>}</div> : <>
           <div className="graph-top"><div className="view-label"><Network size={15} /><strong>{view === 'topic' ? category : '전체 개념 지도'}</strong><span className="graph-meta">{graphConcepts.length} 개념<span>·</span>{graphRelations.length} 연결</span></div><div className="graph-filters">{view === 'topic' && <button className="filter-chip" onClick={() => navigate('topics')}><ArrowLeft size={11}/>주제 목록</button>}<button className="filter-chip active" onClick={() => navigate(view === 'topic' ? 'main' : 'topics')}>{view === 'topic' ? '전체 지도' : '개념별 지도'}<ArrowUpRight size={11}/></button></div></div>
           <div className="canvas-top-hint"><span className="hint-dot" />{view === 'topic' ? `${category}에 속한 개념만 보고 있어요` : selected ? '연결을 따라 생각을 넓혀보세요' : '모든 개념이 연결된 나의 전체 지도'}</div>
-          {graphConcepts.length ? <Graph key={(view === 'topic' ? category : 'main')+':'+graphReset} concepts={graphConcepts} relations={graphRelations} hierarchyRelations={data.relations} peerMode={peerMode} peerIds={peerIds} onEndPeerMode={()=>setPeerCompareOn(false)} onPeerDetails={()=>setPeerDetailsVisible(true)} selectedId={selectedId} onSelect={select} onPositionChange={(id, position) => request(`/concepts/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(position) }).catch(error => notify(`위치를 저장하지 못했어요. ${error.message}`))} query={query.trim()} category={null} categories={view === 'topic' ? [category] : categories} /> : <>
+          {graphConcepts.length ? <Graph key={(view === 'topic' ? category : 'main')+':'+graphReset} concepts={graphConcepts} relations={graphRelations} hierarchyRelations={data.relations} peerMode={peerMode} peerIds={peerIds} onEndPeerMode={()=>setPeerCompareOn(false)} onPeerDetails={()=>setPeerDetailsVisible(true)} selectedId={selectedId} onSelect={select} onPositionChange={(id, position) => request(`/concepts/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(position) }).then(()=>setData(previous=>({...previous,concepts:previous.concepts.map(c=>c.id===id?{...c,...position}:c)}))).catch(error => notify(`위치를 저장하지 못했어요. ${error.message}`))} onLayoutChange={async positions=>{try{await request('/concepts/layout',{method:'PATCH',body:JSON.stringify({positions:Object.entries(positions).map(([id,p])=>({id,...p}))})});setData(previous=>({...previous,concepts:previous.concepts.map(c=>positions[c.id]?{...c,...positions[c.id]}:c)}));notify('배치를 저장했어요.');}catch(error){notify(`배치를 저장하지 못했어요. ${error.message}`);throw error;}}} query={query.trim()} category={null} categories={view === 'topic' ? [category] : categories} /> : <>
             <div className="empty-graph-decoration" aria-hidden="true"><span className="deco-node node-one"><span />나의 첫 개념</span><span className="deco-node node-two"><span />새로운 질문</span><span className="deco-node node-three"><span />다음 연결</span><svg viewBox="0 0 700 400"><path d="M210 130 C300 130 250 260 370 260 S480 170 540 170" /></svg></div>
             <div className="empty-map"><div className="empty-illustration"><GitBranch size={27} strokeWidth={1.5} /><span className="illustration-spark">✦</span></div><span className="empty-eyebrow">A PLACE FOR YOUR GROWING MIND</span><h2 className="empty-title">아는 것들이 연결되는 곳.</h2><p className="empty-description">궁금한 개념 하나에서 시작해보세요.<br />큰 주제로 묶고, 메모와 링크로 이해를 쌓아보세요.</p><div className="empty-actions"><button className="button primary" onClick={() => setModal('concept')}><Plus size={16} />첫 개념 만들기</button><button className="button secondary" disabled={busy} onClick={loadDemo}>{busy ? <Loader2 size={14} className="spin" /> : <Network size={15} />}예시 지도 둘러보기</button></div><p className="empty-footnote"><span className="status-dot" />나에게만 보이는 비공개 지식 공간</p></div>
             <div className="graph-bottom"><span className="canvas-empty-caption">연결에는 정해진 순서가 없어요.</span><div className="zoom-controls muted"><Focus size={16} /><span className="zoom-value">100%</span></div></div>

@@ -307,6 +307,13 @@ export async function handleApi(request, env) {
       await statement(db,'INSERT INTO concepts (id,user_id,title,aliases,category,description,color,x,y,created_at,revision,is_major) VALUES (?,?,?,?,?,?,?,?,?,?,0,?)',concept.id,user.id,title,JSON.stringify(aliases),category,description,concept.color,concept.x,concept.y,concept.created_at,isMajor).run();
       return response(concept,201);
     }
+    if(path==='/concepts/layout'&&method==='PATCH'){
+      const body=await readBody(request),positions=body.positions;
+      if(!Array.isArray(positions)||!positions.length||positions.length>500)fail(400,'invalid_layout','1~500개의 노드 위치를 보내주세요.');
+      const seen=new Set();for(const p of positions){if(!p||typeof p.id!=='string'||seen.has(p.id)||!Number.isFinite(p.x)||!Number.isFinite(p.y)||Math.abs(p.x)>1000000||Math.abs(p.y)>1000000)fail(400,'invalid_layout','노드 위치가 올바르지 않습니다.');seen.add(p.id);await ownedConcept(db,user.id,p.id);}
+      await db.batch(positions.map(p=>statement(db,'UPDATE concepts SET x=?,y=? WHERE id=? AND user_id=?',Math.round(p.x),Math.round(p.y),p.id,user.id)));
+      return response({saved:true,count:positions.length});
+    }
     match=path.match(/^\/concepts\/([^/]+)$/);
     if(match && method==='GET'){ const data=await loadData(db,user);const concept=data.concepts.find(c=>c.id===match[1]);if(!concept)fail(404,'not_found','개념을 찾을 수 없습니다.');return response(concept);}
     if(match&&method==='DELETE'){
