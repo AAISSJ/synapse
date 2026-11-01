@@ -303,6 +303,24 @@ export async function handleApi(request, env) {
     }
     match=path.match(/^\/concepts\/([^/]+)$/);
     if(match && method==='GET'){ const data=await loadData(db,user);const concept=data.concepts.find(c=>c.id===match[1]);if(!concept)fail(404,'not_found','개념을 찾을 수 없습니다.');return response(concept);}
+    if(match&&method==='DELETE'){
+      const concept=await ownedConcept(db,user.id,match[1]),timestamp=now();
+      const linked=(await all(db,'SELECT entry_id FROM entry_concepts WHERE concept_id=?',concept.id)).map(r=>r.entry_id);
+      const entryIds=JSON.stringify(linked),path='$.'+JSON.stringify(concept.id);
+      await db.batch([
+        statement(db,'DELETE FROM entry_concepts WHERE concept_id=?',concept.id),
+        statement(db,'DELETE FROM idempotency WHERE user_id=? AND entry_id IN (SELECT value FROM json_each(?)) AND NOT EXISTS (SELECT 1 FROM entry_concepts ec WHERE ec.entry_id=idempotency.entry_id)',user.id,entryIds),
+        statement(db,'DELETE FROM entries WHERE user_id=? AND id IN (SELECT value FROM json_each(?)) AND NOT EXISTS (SELECT 1 FROM entry_concepts ec WHERE ec.entry_id=entries.id)',user.id,entryIds),
+        statement(db,'DELETE FROM relations WHERE user_id=? AND (source_id=? OR target_id=?)',user.id,concept.id,concept.id),
+        statement(db,'DELETE FROM concept_terms WHERE user_id=? AND concept_id=?',user.id,concept.id),
+        statement(db,'DELETE FROM jobs WHERE user_id=? AND concept_id=?',user.id,concept.id),
+        statement(db,'DELETE FROM summary_revisions WHERE user_id=? AND concept_id=?',user.id,concept.id),
+        statement(db,'DELETE FROM comparisons WHERE user_id=? AND json_array_length(concept_ids)<=2 AND EXISTS (SELECT 1 FROM json_each(comparisons.concept_ids) WHERE value=?)',user.id,concept.id),
+        statement(db,"UPDATE comparisons SET concept_ids=(SELECT json_group_array(value) FROM json_each(comparisons.concept_ids) WHERE value<>?),rows=(SELECT json_group_array(json_set(value,'$.cells',json_remove(json_extract(value,'$.cells'),?))) FROM json_each(comparisons.rows)),updated_at=CASE WHEN updated_at>=? THEN strftime('%Y-%m-%dT%H:%M:%fZ',updated_at,'+0.001 seconds') ELSE ? END WHERE user_id=? AND EXISTS (SELECT 1 FROM json_each(comparisons.concept_ids) WHERE value=?)",concept.id,path,timestamp,timestamp,user.id,concept.id),
+        statement(db,'DELETE FROM concepts WHERE id=? AND user_id=?',concept.id,user.id),
+      ]);
+      return response({deleted:true});
+    }
     if(match && method==='PATCH'){
       const current=await ownedConcept(db,user.id,match[1]);const body=await readBody(request);
       const x=body.x??current.x,y=body.y??current.y;
@@ -441,7 +459,7 @@ function openapi(origin) {
       '/concepts/{id}/terms':{parameters:idParam,post:op('saveConceptTerm','노드 내부 용어 작성·수정','TermInput',201)},
       '/bootstrap':{get:op('getBootstrap','전체 지도와 기록 조회')},
       '/concepts':{get:{...op('searchConcepts','개념과 별칭 검색'),parameters:[{name:'q',in:'query',schema:string}]},post:op('createConcept','개념 생성','ConceptInput',201)},
-      '/concepts/{id}':{parameters:idParam,get:op('getConcept','개념과 현재 요약 조회'),patch:op('updateConcept','개념과 위치 수정','ConceptUpdate')},
+      '/concepts/{id}':{parameters:idParam,delete:op('deleteConcept','개념·연결·전용 기록 삭제 · 공유 기록 보존'),get:op('getConcept','개념과 현재 요약 조회'),patch:op('updateConcept','개념과 위치 수정','ConceptUpdate')},
       '/concepts/{id}/entries':{parameters:idParam,get:op('getConceptEntries','개념의 시간순 기록')},
       '/entries':{post:{...op('createEntry','기록 추가 및 요약 작업 등록','EntryInput',201),parameters:[{name:'Idempotency-Key',in:'header',schema:{type:'string',maxLength:200},description:'같은 요청의 중복 저장 방지. 같은 키에 다른 내용은 409를 반환합니다.'}]}},
       '/relations':{post:op('createRelation','개념 연결','RelationInput',201)},
