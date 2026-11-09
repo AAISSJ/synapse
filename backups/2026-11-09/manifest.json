@@ -1,0 +1,574 @@
+{
+  "format": "synapse-github-content-backup",
+  "version": 1,
+  "exported_at": "2026-11-09T10:36:56.956Z",
+  "source_commit": "82d0133b12688f1f6767fa092aab223c594c566e",
+  "counts": {
+    "concepts": 40,
+    "terms": 187,
+    "entries": 49,
+    "relations": 76,
+    "comparisons": 5,
+    "inbox": 0,
+    "trash_items": 10,
+    "agent_threads": 0,
+    "agent_requests": 0,
+    "summary_revisions": 0,
+    "images": 21,
+    "image_bytes": 4901370
+  },
+  "images": [
+    {
+      "id": "image_7baad30b880347df82d84fa1408dd45f",
+      "filename": "image.png",
+      "mime": "image/png",
+      "size": 46339,
+      "created_at": "2026-11-09T02:10:56.797Z",
+      "url": "/api/v1/images/image_7baad30b880347df82d84fa1408dd45f",
+      "file": "assets/image_7baad30b880347df82d84fa1408dd45f.png",
+      "sha256": "8ac49d1e40d5e0acd8a488456f0afb5c2217b26f74911f0423dcbbece7f83165"
+    },
+    {
+      "id": "image_7c28e0b800bc4428a9e49d41bf9b503a",
+      "filename": "image.png",
+      "mime": "image/png",
+      "size": 78395,
+      "created_at": "2026-11-09T02:53:58.728Z",
+      "url": "/api/v1/images/image_7c28e0b800bc4428a9e49d41bf9b503a",
+      "file": "assets/image_7c28e0b800bc4428a9e49d41bf9b503a.png",
+      "sha256": "fc81ade9a7ca56eb0e25684c58912933558546a39611bfbd7cb8f1f16e94875e"
+    },
+    {
+      "id": "image_35a86372e97a40c9add844a99e5e90bf",
+      "filename": "image.png",
+      "mime": "image/png",
+      "size": 78395,
+      "created_at": "2026-11-09T03:17:18.567Z",
+      "url": "/api/v1/images/image_35a86372e97a40c9add844a99e5e90bf",
+      "file": "assets/image_35a86372e97a40c9add844a99e5e90bf.png",
+      "sha256": "fc81ade9a7ca56eb0e25684c58912933558546a39611bfbd7cb8f1f16e94875e"
+    },
+    {
+      "id": "image_825c77d3626f47ff8962fc4e612720b0",
+      "filename": "image.png",
+      "mime": "image/png",
+      "size": 84053,
+      "created_at": "2026-11-09T03:26:50.439Z",
+      "url": "/api/v1/images/image_825c77d3626f47ff8962fc4e612720b0",
+      "file": "assets/image_825c77d3626f47ff8962fc4e612720b0.png",
+      "sha256": "642da96fade3380474e797f4f0c2dd1ddd0c39a86906dea53055244ecb80b218"
+    },
+    {
+      "id": "image_d1da3b95cd3d450c89afe608fe83c90e",
+      "filename": "image.png",
+      "mime": "image/png",
+      "size": 598240,
+      "created_at": "2026-11-09T07:54:59.649Z",
+      "url": "/api/v1/images/image_d1da3b95cd3d450c89afe608fe83c90e",
+      "file": "assets/image_d1da3b95cd3d450c89afe608fe83c90e.png",
+      "sha256": "279b23ccd2e4842d421b53217474acfb0f3f0bd3b38b67356fb82b01ad4f2759"
+    },
+    {
+      "id": "image_a68aacb2699a4b16a5f5624962503996",
+      "filename": "image.png",
+      "mime": "image/png",
+      "size": 327984,
+      "created_at": "2026-11-09T08:01:01.461Z",
+      "url": "/api/v1/images/image_a68aacb2699a4b16a5f5624962503996",
+      "file": "assets/image_a68aacb2699a4b16a5f5624962503996.png",
+      "sha256": "a9e2eec50ac88b3586e0f211941ac0d8a5095f7f8cfbf9f81327c90c548de0ed"
+    },
+    {
+      "id": "image_13b05ecc59084494b6d86b3890547aad",
+      "filename": "image.png",
+      "mime": "image/png",
+      "size": 247493,
+      "created_at": "2026-11-09T08:02:53.931Z",
+      "url": "/api/v1/images/image_13b05ecc59084494b6d86b3890547aad",
+      "file": "assets/image_13b05ecc59084494b6d86b3890547aad.png",
+      "sha256": "6bd59ff50233f1ce2174544cc94cfce1689a426d3bb3047547c87a8dc3683725"
+    },
+    {
+      "id": "image_0a611fab0aa545d4878201675ed5cef2",
+      "filename": "image.png",
+      "mime": "image/png",
+      "size": 167764,
+      "created_at": "2026-11-09T08:06:19.482Z",
+      "url": "/api/v1/images/image_0a611fab0aa545d4878201675ed5cef2",
+      "file": "assets/image_0a611fab0aa545d4878201675ed5cef2.png",
+      "sha256": "062e26812762cc4f3235f8bc47cce2872851f6176bf2b6e9a02194947a8a9655"
+    },
+    {
+      "id": "image_f3d8037255d749f8a5f37d005711e37c",
+      "filename": "image.png",
+      "mime": "image/png",
+      "size": 260174,
+      "created_at": "2026-11-09T08:08:43.720Z",
+      "url": "/api/v1/images/image_f3d8037255d749f8a5f37d005711e37c",
+      "file": "assets/image_f3d8037255d749f8a5f37d005711e37c.png",
+      "sha256": "801e3244d647c5a1f370df00741488370f73e62ef2f192776adc1d92c743eec8"
+    },
+    {
+      "id": "image_22075725e6154d9b8ea06b4923edbf40",
+      "filename": "image.png",
+      "mime": "image/png",
+      "size": 238008,
+      "created_at": "2026-11-09T08:10:04.521Z",
+      "url": "/api/v1/images/image_22075725e6154d9b8ea06b4923edbf40",
+      "file": "assets/image_22075725e6154d9b8ea06b4923edbf40.png",
+      "sha256": "98c6225c2078e30b908cfb6301cf3d665b6acf1c0ffc7f9061b172098e055f23"
+    },
+    {
+      "id": "image_e780d680d8b743b48a3f2159f9a9c7a9",
+      "filename": "image.png",
+      "mime": "image/png",
+      "size": 338454,
+      "created_at": "2026-11-09T08:15:05.908Z",
+      "url": "/api/v1/images/image_e780d680d8b743b48a3f2159f9a9c7a9",
+      "file": "assets/image_e780d680d8b743b48a3f2159f9a9c7a9.png",
+      "sha256": "788a5a77a5ae686699f22fc4dd2797aed0f6e75687b4f1881a07a31b121fea61"
+    },
+    {
+      "id": "image_89f3928669334c80b9310078b6879f9e",
+      "filename": "image.png",
+      "mime": "image/png",
+      "size": 415524,
+      "created_at": "2026-11-09T08:26:34.869Z",
+      "url": "/api/v1/images/image_89f3928669334c80b9310078b6879f9e",
+      "file": "assets/image_89f3928669334c80b9310078b6879f9e.png",
+      "sha256": "e2b110ce38188ed936b78c8449d478ac6272e1b42952e56ef205f38face4569b"
+    },
+    {
+      "id": "image_35732db53aa644ad9cdc7cd9362de1a9",
+      "filename": "image.png",
+      "mime": "image/png",
+      "size": 289778,
+      "created_at": "2026-11-09T08:28:48.656Z",
+      "url": "/api/v1/images/image_35732db53aa644ad9cdc7cd9362de1a9",
+      "file": "assets/image_35732db53aa644ad9cdc7cd9362de1a9.png",
+      "sha256": "085144b597afe46b4bbaad559528250853dd12aab56295ee2487890266c8528a"
+    },
+    {
+      "id": "image_80c7716127f94bda832c1476db4f5895",
+      "filename": "스크린샷 2026-11-09 오후 5.26.00.png",
+      "mime": "image/png",
+      "size": 481315,
+      "created_at": "2026-11-09T09:35:48.317Z",
+      "url": "/api/v1/images/image_80c7716127f94bda832c1476db4f5895",
+      "file": "assets/image_80c7716127f94bda832c1476db4f5895.png",
+      "sha256": "90cdb56091de3438901a838517808271f59162d2ad717b8423b1e65bf173d6f8"
+    },
+    {
+      "id": "image_4b012bffa1534f62be14d54c50fea60f",
+      "filename": "image.png",
+      "mime": "image/png",
+      "size": 292695,
+      "created_at": "2026-11-09T09:43:20.771Z",
+      "url": "/api/v1/images/image_4b012bffa1534f62be14d54c50fea60f",
+      "file": "assets/image_4b012bffa1534f62be14d54c50fea60f.png",
+      "sha256": "1b767733a942b4bd7532a945844abb193ca7fbad18e045cee6c971034b9cdd5f"
+    },
+    {
+      "id": "image_73f69ea29e89412f956e85653e8d943b",
+      "filename": "스크린샷 2026-11-09 오후 6.50.19.png",
+      "mime": "image/png",
+      "size": 511679,
+      "created_at": "2026-11-09T09:50:23.734Z",
+      "url": "/api/v1/images/image_73f69ea29e89412f956e85653e8d943b",
+      "file": "assets/image_73f69ea29e89412f956e85653e8d943b.png",
+      "sha256": "020e8b9461d597e557b9becf8ff131d75d73bd893eb43a0550d822b38ee49090"
+    },
+    {
+      "id": "image_8c9ef59a2efd44b7a8e53d26cec5b259",
+      "filename": "image.png",
+      "mime": "image/png",
+      "size": 81739,
+      "created_at": "2026-11-09T10:07:15.103Z",
+      "url": "/api/v1/images/image_8c9ef59a2efd44b7a8e53d26cec5b259",
+      "file": "assets/image_8c9ef59a2efd44b7a8e53d26cec5b259.png",
+      "sha256": "b5757dca8d4888d70b8c5d0b6134b10183d0b1224ab4c9208a161e0951d1c6e5"
+    },
+    {
+      "id": "image_20980de3846341ac8e22a54261a70485",
+      "filename": "kubernetes-cluster.png",
+      "mime": "image/png",
+      "size": 99728,
+      "created_at": "2026-11-09T10:16:28.520Z",
+      "url": "/api/v1/images/image_20980de3846341ac8e22a54261a70485",
+      "file": "assets/image_20980de3846341ac8e22a54261a70485.png",
+      "sha256": "d5964a45a7b61916970349513a9c23bf41f16261a2f0f06074211e7d60ecd475"
+    },
+    {
+      "id": "image_a1830d940c2a463d9411782e003f8db2",
+      "filename": "kubernetes-workload.png",
+      "mime": "image/png",
+      "size": 72683,
+      "created_at": "2026-11-09T10:16:30.702Z",
+      "url": "/api/v1/images/image_a1830d940c2a463d9411782e003f8db2",
+      "file": "assets/image_a1830d940c2a463d9411782e003f8db2.png",
+      "sha256": "aeb031105d355d3bc9ebc91c105b70187303b1c62e15ebfbf5f289ec2896da5d"
+    },
+    {
+      "id": "image_c1040fd119e743ac92bc7c2faa13b77f",
+      "filename": "kubernetes-network.png",
+      "mime": "image/png",
+      "size": 99848,
+      "created_at": "2026-11-09T10:16:32.863Z",
+      "url": "/api/v1/images/image_c1040fd119e743ac92bc7c2faa13b77f",
+      "file": "assets/image_c1040fd119e743ac92bc7c2faa13b77f.png",
+      "sha256": "e7dc91bf8f5fc71ef781fe63d45e45a73480ccc8a22211d53def765e8f19fafc"
+    },
+    {
+      "id": "image_af0f4aeeaddc486d91f941ae88bcd69b",
+      "filename": "kubernetes-scaling.png",
+      "mime": "image/png",
+      "size": 91082,
+      "created_at": "2026-11-09T10:16:35.614Z",
+      "url": "/api/v1/images/image_af0f4aeeaddc486d91f941ae88bcd69b",
+      "file": "assets/image_af0f4aeeaddc486d91f941ae88bcd69b.png",
+      "sha256": "4839c1e2a6e77fec0be4a451161a741633e9bdd60efa2e4c46a144a42477e0e3"
+    }
+  ],
+  "files": [
+    {
+      "path": "README.md",
+      "size": 4606,
+      "sha256": "d60f8bfd7584fee15b12d6850926b833603e158cc254736ca6bf4e2f7db19981"
+    },
+    {
+      "path": "assets/image_0a611fab0aa545d4878201675ed5cef2.png",
+      "size": 167764,
+      "sha256": "062e26812762cc4f3235f8bc47cce2872851f6176bf2b6e9a02194947a8a9655"
+    },
+    {
+      "path": "assets/image_13b05ecc59084494b6d86b3890547aad.png",
+      "size": 247493,
+      "sha256": "6bd59ff50233f1ce2174544cc94cfce1689a426d3bb3047547c87a8dc3683725"
+    },
+    {
+      "path": "assets/image_20980de3846341ac8e22a54261a70485.png",
+      "size": 99728,
+      "sha256": "d5964a45a7b61916970349513a9c23bf41f16261a2f0f06074211e7d60ecd475"
+    },
+    {
+      "path": "assets/image_22075725e6154d9b8ea06b4923edbf40.png",
+      "size": 238008,
+      "sha256": "98c6225c2078e30b908cfb6301cf3d665b6acf1c0ffc7f9061b172098e055f23"
+    },
+    {
+      "path": "assets/image_35732db53aa644ad9cdc7cd9362de1a9.png",
+      "size": 289778,
+      "sha256": "085144b597afe46b4bbaad559528250853dd12aab56295ee2487890266c8528a"
+    },
+    {
+      "path": "assets/image_35a86372e97a40c9add844a99e5e90bf.png",
+      "size": 78395,
+      "sha256": "fc81ade9a7ca56eb0e25684c58912933558546a39611bfbd7cb8f1f16e94875e"
+    },
+    {
+      "path": "assets/image_4b012bffa1534f62be14d54c50fea60f.png",
+      "size": 292695,
+      "sha256": "1b767733a942b4bd7532a945844abb193ca7fbad18e045cee6c971034b9cdd5f"
+    },
+    {
+      "path": "assets/image_73f69ea29e89412f956e85653e8d943b.png",
+      "size": 511679,
+      "sha256": "020e8b9461d597e557b9becf8ff131d75d73bd893eb43a0550d822b38ee49090"
+    },
+    {
+      "path": "assets/image_7baad30b880347df82d84fa1408dd45f.png",
+      "size": 46339,
+      "sha256": "8ac49d1e40d5e0acd8a488456f0afb5c2217b26f74911f0423dcbbece7f83165"
+    },
+    {
+      "path": "assets/image_7c28e0b800bc4428a9e49d41bf9b503a.png",
+      "size": 78395,
+      "sha256": "fc81ade9a7ca56eb0e25684c58912933558546a39611bfbd7cb8f1f16e94875e"
+    },
+    {
+      "path": "assets/image_80c7716127f94bda832c1476db4f5895.png",
+      "size": 481315,
+      "sha256": "90cdb56091de3438901a838517808271f59162d2ad717b8423b1e65bf173d6f8"
+    },
+    {
+      "path": "assets/image_825c77d3626f47ff8962fc4e612720b0.png",
+      "size": 84053,
+      "sha256": "642da96fade3380474e797f4f0c2dd1ddd0c39a86906dea53055244ecb80b218"
+    },
+    {
+      "path": "assets/image_89f3928669334c80b9310078b6879f9e.png",
+      "size": 415524,
+      "sha256": "e2b110ce38188ed936b78c8449d478ac6272e1b42952e56ef205f38face4569b"
+    },
+    {
+      "path": "assets/image_8c9ef59a2efd44b7a8e53d26cec5b259.png",
+      "size": 81739,
+      "sha256": "b5757dca8d4888d70b8c5d0b6134b10183d0b1224ab4c9208a161e0951d1c6e5"
+    },
+    {
+      "path": "assets/image_a1830d940c2a463d9411782e003f8db2.png",
+      "size": 72683,
+      "sha256": "aeb031105d355d3bc9ebc91c105b70187303b1c62e15ebfbf5f289ec2896da5d"
+    },
+    {
+      "path": "assets/image_a68aacb2699a4b16a5f5624962503996.png",
+      "size": 327984,
+      "sha256": "a9e2eec50ac88b3586e0f211941ac0d8a5095f7f8cfbf9f81327c90c548de0ed"
+    },
+    {
+      "path": "assets/image_af0f4aeeaddc486d91f941ae88bcd69b.png",
+      "size": 91082,
+      "sha256": "4839c1e2a6e77fec0be4a451161a741633e9bdd60efa2e4c46a144a42477e0e3"
+    },
+    {
+      "path": "assets/image_c1040fd119e743ac92bc7c2faa13b77f.png",
+      "size": 99848,
+      "sha256": "e7dc91bf8f5fc71ef781fe63d45e45a73480ccc8a22211d53def765e8f19fafc"
+    },
+    {
+      "path": "assets/image_d1da3b95cd3d450c89afe608fe83c90e.png",
+      "size": 598240,
+      "sha256": "279b23ccd2e4842d421b53217474acfb0f3f0bd3b38b67356fb82b01ad4f2759"
+    },
+    {
+      "path": "assets/image_e780d680d8b743b48a3f2159f9a9c7a9.png",
+      "size": 338454,
+      "sha256": "788a5a77a5ae686699f22fc4dd2797aed0f6e75687b4f1881a07a31b121fea61"
+    },
+    {
+      "path": "assets/image_f3d8037255d749f8a5f37d005711e37c.png",
+      "size": 260174,
+      "sha256": "801e3244d647c5a1f370df00741488370f73e62ef2f192776adc1d92c743eec8"
+    },
+    {
+      "path": "comparisons/Redis-PostgreSQL-MongoDB-비교--comparison_f4da7e2d30544a1fa11962ed60e0eaa4.md",
+      "size": 3251,
+      "sha256": "218a4966afbb36b4b2075bacd25a9c4602f54e487af568a1c3841caa57605f02"
+    },
+    {
+      "path": "comparisons/Rust-TypeScript-Go-비교--comparison_a4195e48cf2a42d88e6046407610777f.md",
+      "size": 2798,
+      "sha256": "7d7f5e114dc8897ffe24bb54bf8101800c51e2024efc2909ace2bd8a8e3e848f"
+    },
+    {
+      "path": "comparisons/TypeScript-기반-CLI-Rust-기반-CLI--comparison_6fbcd176c19d4f2ab9bf4c585583e543.md",
+      "size": 1228,
+      "sha256": "6d653c185baeee6ffcbdbe1f2ce28ca88212c1281fe77d81785abb4b1f6b33f4"
+    },
+    {
+      "path": "comparisons/가상머신-Docker-컨테이너-비교--comparison_6a097bd4bdaa410690b994cbe0289adf.md",
+      "size": 2004,
+      "sha256": "d8e15da2d98319a71e1dafad02076d80fd8b58b9a0c5eb419d1779e7b308d084"
+    },
+    {
+      "path": "comparisons/객체-블록-파일-스토리지-비교--comparison_9a4ca436545247a7812b4c86a8df8aa3.md",
+      "size": 2638,
+      "sha256": "813d8fe6ea1486c1eaf4feecce7bfae254352b3b8b6024d2450632d465b4bb72"
+    },
+    {
+      "path": "knowledge/C---concept_f23422b887944e39aacdbae13e3441c9.md",
+      "size": 1305,
+      "sha256": "9572296788a874d29259dd2eb141552c5bcf282719bcb9821e2eaa296ac02744"
+    },
+    {
+      "path": "knowledge/C--concept_7f3dc397e3c84011957ab175dbe31c58.md",
+      "size": 1003,
+      "sha256": "32eeb1d5de27474a85d62e89d2eff2b1694b82bb04e5bb94314239dccbc3af8f"
+    },
+    {
+      "path": "knowledge/CQRS--concept_demo_74d8203c9d02fd41b3db689e_5.md",
+      "size": 250,
+      "sha256": "918125022cdcea2984ed2786c9fc54ca36b7017a195f32fe0f1145e7ad7d3773"
+    },
+    {
+      "path": "knowledge/DB-확장--concept_38940c81197745a1a2ab0db77ef28714.md",
+      "size": 1798,
+      "sha256": "3dfcbf3b3bd61730c57f91902930fe091516baa467b62eb47b492f680bbb877f"
+    },
+    {
+      "path": "knowledge/Docker-컨테이너--concept_00792904c48b46bd9dfd34cb474c42b5.md",
+      "size": 5596,
+      "sha256": "3b0039c50d1d04cc7bfa0a47bda04269500420179d8e90ad6a36e62bf1e93a50"
+    },
+    {
+      "path": "knowledge/Go--concept_31f6d6abd3474177be0162aa2bbea396.md",
+      "size": 2645,
+      "sha256": "9806e4cae59c123e395588e40bb0853c33443c40df6132074f29dab12097a2b2"
+    },
+    {
+      "path": "knowledge/Java--concept_adc3eede824048f99bae9c5e3c55fa27.md",
+      "size": 1391,
+      "sha256": "5112ae07be21888afdb50ae1a863e8828de6af952edbca1b0f65c4f9ebcc99ed"
+    },
+    {
+      "path": "knowledge/JavaScript--concept_1fb48a3098dd49d79cd7b26402400ddd.md",
+      "size": 5618,
+      "sha256": "09ab025fc8a829da8cde136b7a6527eb3fd2c313d33caad9aa546f7984baa3fa"
+    },
+    {
+      "path": "knowledge/Kubernetes--concept_7f80b30c2c1c48b0929377bc057e39be.md",
+      "size": 26033,
+      "sha256": "89f0c14b811b99d4864d1a2a1bae03a3194e34443187d31af8c4d51220757bdf"
+    },
+    {
+      "path": "knowledge/MongoDB--concept_4d10a940be2c4afba013465932cb7663.md",
+      "size": 7030,
+      "sha256": "b77992e391e51bae951e4ffb349f3296dd8d204a98338fe46014af7347b7d894"
+    },
+    {
+      "path": "knowledge/Node-js--concept_7586fbb7f39c49a9878c045511f1ebd5.md",
+      "size": 1313,
+      "sha256": "9bfb06724ffcc9d3d79a4ddef76b9b6106a2f68fb1233190c286b70db86c9697"
+    },
+    {
+      "path": "knowledge/PostgreSQL--concept_e319d8e5d3d648a5bc72e7183ec1293e.md",
+      "size": 9213,
+      "sha256": "565ed15b2cddb2711093f43dc6d55d76b21a803517b6bb13598752df2216daa2"
+    },
+    {
+      "path": "knowledge/RAG--concept_e31f1825cfef45bd9d3f25f47a3db5fc.md",
+      "size": 1647,
+      "sha256": "af399a27dffd831d3c8b8903b3c3ec7ccd308948a8b51f9b6537ce10355b6d67"
+    },
+    {
+      "path": "knowledge/React--concept_f7df52a2323a428ea988410c84d83854.md",
+      "size": 2528,
+      "sha256": "55474d5b5a00ecd3d52f25ba011527e1d28b91a842e114347c10c7f126890d53"
+    },
+    {
+      "path": "knowledge/Redis--concept_d0f66e21461d4e4fb58648de528a9b65.md",
+      "size": 11169,
+      "sha256": "a071debde686caa011b07d0f57936e83a86fdfeeec37ac38a435e32864417689"
+    },
+    {
+      "path": "knowledge/Rust--concept_ca1b2dd62ed54c4fb62fddfe4e576254.md",
+      "size": 3029,
+      "sha256": "61654a4103b29275c2570fb343351b88f1b75b3225a96661d61c092275f7c594"
+    },
+    {
+      "path": "knowledge/TypeScript--concept_4dc0a0db813543f7af9d7ccaa080f25a.md",
+      "size": 2561,
+      "sha256": "71c4f1dcc02f9b92c44c18bebb5c559ef7168cbd835efc84d810d27b89c9437c"
+    },
+    {
+      "path": "knowledge/npm--concept_b2eeff7d2ab44bc8b81112091eb5c084.md",
+      "size": 4188,
+      "sha256": "5f2b49b1f4d0f59a4f5e4d3c38fcac986988063a34efb29396aabb01e7b2d777"
+    },
+    {
+      "path": "knowledge/가상머신--concept_06fd2def367042d589fd5d542ae177de.md",
+      "size": 7275,
+      "sha256": "c21244866e1851b3282e15b09b2a5558b20af90af7f93158933e833601c8b5da"
+    },
+    {
+      "path": "knowledge/객체-스토리지--concept_8188d70d524c4d6693eb4a04a275e174.md",
+      "size": 5693,
+      "sha256": "dd8f142cbe95d015caeddf9ad69d83340ad4103d96cef6d2b6933862be7826f7"
+    },
+    {
+      "path": "knowledge/데이터-일관성--concept_demo_74d8203c9d02fd41b3db689e_6.md",
+      "size": 333,
+      "sha256": "8c0ff489a11a69ecaf14c0be79a1be901feca5d44bbb4af2ad8030a61a447354"
+    },
+    {
+      "path": "knowledge/데이터-저장--concept_e79755fd09214686a65e705ad13234df.md",
+      "size": 2188,
+      "sha256": "d728767ff048ca71a4b79de38d38132aca803bdd2a4ad6d25ef861241dc4c72c"
+    },
+    {
+      "path": "knowledge/데이터베이스--concept_65e748526a614bbe8d9ac1135690e5d7.md",
+      "size": 30484,
+      "sha256": "4be07531e257b6aab901a444f2a461375a0dcc2c3d484999cbc1dc8692332da4"
+    },
+    {
+      "path": "knowledge/도메인-주도-설계--concept_demo_74d8203c9d02fd41b3db689e_4.md",
+      "size": 309,
+      "sha256": "abedc36151ed887a1c13b3c383a39fe45d1f79360ed9c9069c2783751a459eaa"
+    },
+    {
+      "path": "knowledge/마이크로서비스--concept_demo_74d8203c9d02fd41b3db689e_1.md",
+      "size": 1175,
+      "sha256": "35f13f14e1a9df56e438fc15ec41ed3c6e87537e63539304abfd0a2fdfa794de"
+    },
+    {
+      "path": "knowledge/모놀리스--concept_demo_74d8203c9d02fd41b3db689e_2.md",
+      "size": 1148,
+      "sha256": "084886055eac80f91c7662b130158e85548d87aa7ae554fec86afd524b774e07"
+    },
+    {
+      "path": "knowledge/배포-전략--concept_18d00bd8ee34482db8bafce3978f80ec.md",
+      "size": 24126,
+      "sha256": "860866541822af5828044c6627c8f936965056cae022dc914a484a1570d2b5fe"
+    },
+    {
+      "path": "knowledge/블록-스토리지--concept_9924fda22e424024ab3109133b3fe5c3.md",
+      "size": 5433,
+      "sha256": "093b1d16fcabeb30f17defd3bfae7d7c42df0835e6fe6d82f93e5dc1fc855fd2"
+    },
+    {
+      "path": "knowledge/스토리지--concept_e397e02eb2b34d7b853e39b99c55490b.md",
+      "size": 4297,
+      "sha256": "b897f3e9fad558b83225b8da5e2d2ae6e3cfc48c15e9856cdc7a5218db8167e0"
+    },
+    {
+      "path": "knowledge/시스템-설계--concept_demo_74d8203c9d02fd41b3db689e_0.md",
+      "size": 310,
+      "sha256": "3e56f57d1f78727887b6e086892bfe10b15e89bbad319bfd82afa536fb243516"
+    },
+    {
+      "path": "knowledge/실행-인프라--concept_676e8a0314884f89ad4c20399cb802e2.md",
+      "size": 1966,
+      "sha256": "47dbd09af87370b543278ba5cf3dfbee88add0b3795838cb117e8ad428359086"
+    },
+    {
+      "path": "knowledge/아키텍처-스타일--concept_2147ffff082a432f9a790bd5535166ee.md",
+      "size": 356,
+      "sha256": "4c65e617ac2e61424504252d9511746368a80eb3d0acab9e0475fedf045537b9"
+    },
+    {
+      "path": "knowledge/에이전트-아키텍처--concept_08d64bd8a6dc43548a68c2f9a47e7f7b.md",
+      "size": 2848,
+      "sha256": "29753446806037ca3ea41e4d7edfae7caa9688a1379a626f2be71bb6c9ad93be"
+    },
+    {
+      "path": "knowledge/이벤트-기반-설계--concept_demo_74d8203c9d02fd41b3db689e_3.md",
+      "size": 315,
+      "sha256": "2e105d4ec73f560f6db4afe1000dba8b7474702f47d890c139b458e1da6656db"
+    },
+    {
+      "path": "knowledge/인덱스--concept_e10e53d6dbbd4296bf62db0a6b409f2c.md",
+      "size": 1367,
+      "sha256": "ff85932603eff328706dd39e1b2d7cefcb2b96a985a4a030e68b735913a3d8b2"
+    },
+    {
+      "path": "knowledge/캐시-설계--concept_797a853f851a47af86ee0626618fe813.md",
+      "size": 1965,
+      "sha256": "61d8d50dbcb7cc29d31b068ec2b405b8361e0daa0d50e122789f0a78452ce4d4"
+    },
+    {
+      "path": "knowledge/커넥션-풀--concept_1837f24e607445739d711ad3cfe5c362.md",
+      "size": 2347,
+      "sha256": "2fd583210d1160a39419f601e5880a61728ff2cc17a06222fedb59c7717d9916"
+    },
+    {
+      "path": "knowledge/컴퓨터-언어--concept_6111a8ddf8f14982ba790a40ca456959.md",
+      "size": 5783,
+      "sha256": "34c18c2c57a03ad18f407f2fd0b6b07013fb2d11b1697b7214686c1530a96e41"
+    },
+    {
+      "path": "knowledge/트랜잭션--concept_e8a295db8792444fa3ff94bce0cc6338.md",
+      "size": 2451,
+      "sha256": "f54f37997922065746dbe7de45c9f15e38e15f08f2d081a31e21176dd9b59820"
+    },
+    {
+      "path": "knowledge/파일-스토리지--concept_b102f4ad5d8e4fb485ebe01c41b64646.md",
+      "size": 5845,
+      "sha256": "15959a975b15fd3aef544f2276ef30815ac47c882c2ca1a9acf2980af5723c61"
+    },
+    {
+      "path": "knowledge.json",
+      "size": 386780,
+      "sha256": "550970c6c046a59afbba795ecaa515f3c4a319897db5d41a45b58774ada3f180"
+    }
+  ]
+}
