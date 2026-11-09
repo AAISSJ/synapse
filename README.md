@@ -1,18 +1,20 @@
 # Synapse
 
-공부한 개념과 메모를 그래프로 연결해 정리하는 웹앱입니다. 개념마다 용어·기록·이미지를 쌓고, 비슷한 개념은 비교표로 정리합니다.
+공부하면서 적어둔 메모들을 개념별로 연결해서 보려고 만든 웹앱입니다.
 
-[서비스 열기](https://atlas-knowledge-garden-m8q4.wandering1717.chatgpt.site) · [저장된 학습 내용](backups/2026-11-09/README.md) · [CLI 연결 방법](CLI_README.md)
+예를 들어 Kubernetes를 공부했다면 Pod와 Deployment는 그 안의 용어로 정리하고, Docker나 가상머신은 따로 연결해둘 수 있습니다. Redis와 PostgreSQL처럼 차이가 궁금한 개념은 비교표로 정리합니다. 나중에 다시 읽었을 때 어떤 관계인지 떠올릴 수 있게 만드는 게 목적입니다.
 
-## 어떻게 쓰나요?
+[사이트](https://atlas-knowledge-garden-m8q4.wandering1717.chatgpt.site) · [학습 내용](backups/2026-11-09/README.md) · [CLI 사용법](CLI_README.md)
 
-1. **기록하기** — 개념을 만들고 메모·링크·이미지를 추가합니다. 분류가 애매하면 빠른 기록으로 수집함에 먼저 저장합니다.
-2. **연결하기** — 상하위 개념과 관련 개념을 연결합니다. 세부 용어는 노드 안에 정리하고, 같은 층위의 개념은 비교표로 나란히 봅니다.
-3. **다시 보기** — 전체 검색으로 내용을 찾고, 강조한 내용을 복습합니다. 학습 기록에서는 날짜별로 쌓은 양을 잔디 형태로 확인합니다.
+## 기록하는 방식
 
-메모와 비교표는 마크다운을 지원합니다. 그래프에서 노드를 직접 옮기거나 자동 정돈할 수 있고, 잘못 분류한 내용은 이동·병합할 수 있습니다.
+지도에서 개념을 누르면 그동안 적은 메모와 용어가 보입니다. 메모는 날짜순으로 쌓이고, 마크다운과 이미지를 넣을 수 있습니다. 이름이나 영문 약칭으로 검색해도 같은 내용을 찾을 수 있습니다.
 
-## 로컬에서 실행하기
+분류가 바로 떠오르지 않으면 빠른 기록으로 먼저 저장해두고 나중에 옮기면 됩니다. 개념을 합치거나 상하위 관계를 추가할 수도 있습니다. 비교표는 직접 작성하거나 마크다운 표를 가져와 만들 수 있습니다.
+
+중요한 부분에는 형광펜 표시를 해두고 다시 볼 수 있습니다. 날짜별로 얼마나 기록했는지는 학습 기록의 잔디에 표시됩니다.
+
+## 실행
 
 Node.js 24 이상, npm, `zip`이 필요합니다.
 
@@ -24,54 +26,45 @@ npm run build
 npm run dev
 ```
 
-<http://127.0.0.1:4173>에서 열립니다. 로컬에서는 개발용 계정으로 자동 로그인하며, 데이터와 이미지는 `.sites-runtime/`에 저장합니다. 운영 사이트의 데이터와는 분리됩니다. 코드를 수정하면 다시 빌드하고 개발 서버를 재시작합니다.
+<http://127.0.0.1:4173>에서 확인할 수 있습니다. 로컬에서는 개발용 계정으로 바로 들어가고, 기록과 이미지는 `.sites-runtime/`에 저장됩니다. 운영 사이트와는 별개의 데이터입니다.
 
-```bash
-npm test              # 테스트
-npm run db:generate  # DB 스키마 변경 후 마이그레이션 생성
-```
+코드를 수정했다면 `npm run build`를 다시 실행하고 개발 서버를 재시작하면 됩니다. 테스트는 `npm test`, DB 스키마를 바꾼 뒤 마이그레이션을 만드는 명령은 `npm run db:generate`입니다.
 
-## 동작 구조
+## 구조
+
+화면은 React로 만들었고 API는 Cloudflare Workers에서 실행됩니다. 기록은 D1에, 이미지 파일은 R2에 저장합니다. 현재 배포에는 Sites를 사용하고 있습니다.
 
 ```mermaid
 flowchart LR
-    Web[React 웹] --> API[Worker API]
-    CLI[CLI] --> API
-    Agent[Codex SDK 작업자] <-->|작업 조회·결과 저장| API
-    API --> DB[(D1: 지식과 메타데이터)]
-    API --> Files[(R2: 이미지 파일)]
+    Web[React 화면] --> API[API]
+    CLI[터미널 명령] --> API
+    Codex[Codex SDK] <-->|요청 확인·결과 저장| API
+    API --> D1[(D1 · 기록)]
+    API --> R2[(R2 · 이미지)]
 ```
 
-웹과 API는 Cloudflare Workers에서 실행됩니다. 노드·메모·비교표는 D1에, 이미지 파일은 R2에 저장합니다. 현재 서비스는 Sites를 통해 배포하며, 연결 설정은 [.openai/hosting.json](.openai/hosting.json)에 있습니다.
+키워드로 개념을 만들거나 메모를 요약하는 기능에는 Codex SDK를 씁니다. 이 기능을 사용하려면 Codex에 로그인한 환경에서 `npm run worker`를 따로 실행해둬야 합니다. 설정 방법은 [CLI 사용법](CLI_README.md)에 있습니다.
 
-AI 그래프 생성과 요약은 **별도의 Codex SDK 작업자**가 처리합니다. 작업자가 실행 중이지 않아도 기록은 저장되지만 AI 작업은 대기합니다. 인증과 실행 방법은 [CLI_README.md](CLI_README.md)에 정리했습니다.
+GitHub 로그인을 설정하려면 OAuth App에서 Device Flow를 켜고, 운영 환경의 `GITHUB_CLIENT_ID`에 Client ID를 넣습니다. 기존 ChatGPT 계정의 기록을 이어 쓰려면 로그인한 상태에서 GitHub 계정을 먼저 연결하면 됩니다.
 
-GitHub 로그인에는 Device Flow를 활성화한 OAuth App이 필요합니다. Client ID를 운영 환경의 `GITHUB_CLIENT_ID`에 설정합니다. 기존 ChatGPT 계정의 기록을 이어 쓰려면 로그인한 상태에서 GitHub 계정을 먼저 연결합니다.
+```text
+client/       화면과 그래프
+server/       API, 로그인, 데이터 저장
+worker/       Cloudflare에서 웹 요청을 받는 코드
+db/           DB 스키마
+drizzle/      DB 마이그레이션
+shared/       화면과 서버가 함께 쓰는 로직
+cli/          터미널 명령과 Codex SDK 연동
+tests/        테스트
+backups/      학습 내용과 이미지 백업
+```
 
-### 코드 위치
+배포 설정은 [.openai/hosting.json](.openai/hosting.json)에 있습니다. API 명세는 `/api/v1/openapi.json`에서 볼 수 있습니다.
 
-| 경로 | 역할 |
-| --- | --- |
-| `client/` | React 화면, 그래프, 마크다운 편집기 |
-| `server/` | 사용자 인증, 지식 저장, 검색, AI 작업 API |
-| `worker/` | 웹·API 요청을 받는 배포 진입점 |
-| `db/`, `drizzle/` | DB 스키마와 마이그레이션 |
-| `shared/` | 검색·계층·마크다운·학습량 계산 로직 |
-| `cli/` | 터미널 명령과 Codex SDK 작업자 |
-| `tests/` | API와 데이터 처리 테스트 |
-| `backups/` | 사이트에 저장한 지식과 이미지의 스냅샷 |
+## 학습 내용 백업
 
-API 명세는 `/api/v1/openapi.json`, 상태 확인은 `/health`에서 제공합니다.
+사이트에 정리해둔 내용도 [`backups/`](backups/README.md)에 함께 올려뒀습니다. [2026-11-09 백업](backups/2026-11-09/README.md)에는 전체 데이터인 `knowledge.json`, 읽기용 마크다운 문서, 이미지 원본이 들어 있습니다. `manifest.json`에는 파일별 체크섬이 있습니다.
 
-## 데이터 백업
+사이트의 기록이 자동으로 GitHub에 올라오는 구조는 아니어서, 새로 쓴 내용은 따로 백업해야 합니다. `GET /api/v1/backup`으로 데이터를 내보내고 `images[].url`에서 이미지 파일을 받을 수 있습니다. API 토큰과 로그인 정보는 포함하지 않습니다.
 
-소스코드와 운영 데이터는 별도로 저장됩니다. 이 저장소의 [`backups/`](backups/README.md)는 작성자가 공개한 학습 내용의 수동 백업입니다. 이후 사이트에 추가한 내용이 자동으로 GitHub에 반영되지는 않습니다.
-
-[2026-11-09 백업](backups/2026-11-09/README.md)에는 다음 파일이 있습니다.
-
-- `knowledge.json`: 노드·용어·기록·비교표·휴지통 원문을 포함한 데이터
-- `knowledge/`, `comparisons/`: GitHub에서 읽을 수 있는 마크다운 문서
-- `assets/`: 이미지 원본
-- `manifest.json`: 파일 목록과 SHA-256 체크섬
-
-직접 내보낼 때는 인증된 `GET /api/v1/backup`을 사용하고, 응답의 `images[].url`에서 이미지도 내려받습니다. 로그인 정보와 API 토큰은 백업에서 제외됩니다. 복구할 때는 대상 DB·이미지 저장소에 데이터를 옮기고 ID와 이미지 URL 연결을 맞춰야 합니다.
+백업을 다시 서비스에 넣으려면 DB와 이미지 저장소에 데이터를 옮기고, 개념 ID와 이미지 주소를 맞춰야 합니다.
