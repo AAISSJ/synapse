@@ -60,11 +60,3 @@ backups/      학습 내용과 이미지 백업
 ```
 
 배포 설정은 [.openai/hosting.json](.openai/hosting.json)에 있습니다. API 명세는 `/api/v1/openapi.json`에서 볼 수 있습니다.
-
-## 학습 내용 백업
-
-사이트에 정리해둔 내용도 [`backups/`](backups/README.md)에 함께 올려뒀습니다. [2026-11-09 백업](backups/2026-11-09/README.md)에는 전체 데이터인 `knowledge.json`, 읽기용 마크다운 문서, 이미지 원본이 들어 있습니다. `manifest.json`에는 파일별 체크섬이 있습니다.
-
-사이트의 기록이 자동으로 GitHub에 올라오는 구조는 아니어서, 새로 쓴 내용은 따로 백업해야 합니다. `GET /api/v1/backup`으로 데이터를 내보내고 `images[].url`에서 이미지 파일을 받을 수 있습니다. API 토큰과 로그인 정보는 포함하지 않습니다.
-
-백업을 다시 서비스에 넣으려면 DB와 이미지 저장소에 데이터를 옮기고, 개념 ID와 이미지 주소를 맞춰야 합니다.
