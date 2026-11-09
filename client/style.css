@@ -804,3 +804,8 @@ button.term-title:hover { color: #326728; text-decoration: underline; }
 .editor-image-list{display:flex;flex-wrap:wrap;gap:8px;padding:8px 12px}.editor-image-list .attached-image{margin:0}.editor-image-list img{max-height:100px;max-width:160px}
 .image-drop-active{outline:2px dashed #548267;outline-offset:3px;background:#edf5e8}.image-upload-status{padding:4px 12px;font-size:12px;color:#41632e}.markdown-editor>.form-error{padding:4px 12px}
 .markdown-toolbar{flex-wrap:wrap}.markdown-toolbar button:disabled{opacity:.45;cursor:default}
+.alias-list{display:flex;flex-wrap:wrap;gap:4px 6px;line-height:1.6;overflow-wrap:anywhere}
+.alias-list .alias-name{display:inline-block;padding:1px 6px;border:1px solid #dfe6d8;border-radius:5px;background:#f2f5ed;color:#607354;font-size:11px;font-weight:400;max-width:100%;white-space:normal}
+.detail-aliases.alias-list{margin:8px 0 0}.term-aliases.alias-list{margin:6px 0 2px}.term-title{min-width:0;overflow-wrap:anywhere}.term-top>svg{flex-shrink:0}
+.search-aliases.alias-list{margin:4px 0}.search-result-copy>.alias-list .alias-name{font-size:10px;line-height:1.5}.comparison-aliases.alias-list{margin:6px 0;max-width:260px}
+.graph-aliases{pointer-events:none}
