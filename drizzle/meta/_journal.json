@@ -64,6 +64,13 @@
       "when": 1794189356745,
       "tag": "0008_goofy_blazing_skull",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1794208417238,
+      "tag": "0009_late_earthquake",
+      "breakpoints": true
     }
   ]
 }

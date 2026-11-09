@@ -1,3 +1,4 @@
+import {routePeers} from './peers.js';
 import {routeImages} from './images.js';
 import {routeWorkflows} from './workflows.js';
 import {trashStatement,conceptSnapshot} from './trash.js';
@@ -279,6 +280,7 @@ export async function handleApi(request, env) {
     if (!env.DB) fail(503,'storage_unavailable','저장소 연결이 아직 준비되지 않았습니다.');
     const db = env.DB;
     const user = await authenticate(request, db);
+    const peerResponse=await routePeers(request,db,user,path,method,readBody,{fail,response});if(peerResponse)return peerResponse;
     const imageResponse=await routeImages(request,env,user,path,method,{fail,response});if(imageResponse)return imageResponse;
     const workflowResponse=await routeWorkflows(request,db,user,path,method,readBody,{loadData,createEntry,revisionStatements});if(workflowResponse)return workflowResponse;
     const comparisonResponse=await routeComparisons(request,db,user,path,method,readBody);if(comparisonResponse)return comparisonResponse;
@@ -452,6 +454,7 @@ function openapi(origin) {
     InboxFileInput: object({concept_ids:{type:'array',minItems:1,maxItems:20,items:string}},['concept_ids']),
     TransferInput: object({target_id:string},['target_id']),
     ReviewInput: object({kind:string,ref_id:string,rating:{type:'string',enum:['again','hard','good','easy']}},['kind','ref_id','rating']),
+    PeerInput:object({title:{type:'string',maxLength:200},description:{type:'string',maxLength:10000},parent_id:string,parent_title:{type:'string',maxLength:200},client_key:{type:'string',maxLength:100}},['title','client_key']),
     Empty: object({}),
     Error: object({error:object({code:string,message:string},['code','message'])},['error']),
   };
@@ -485,6 +488,7 @@ function openapi(origin) {
       '/search':{get:{...op('searchKnowledge','노드·용어·메모·비교표·수집함 통합 검색'),parameters:[{name:'q',in:'query',required:true,schema:{type:'string',maxLength:200}}]}},
       '/concepts/{id}/terms/{termId}':{parameters:[...idParam,{name:'termId',in:'path',required:true,schema:string}],delete:op('deleteConceptTerm','내부 용어 삭제 · 재생성 방지'),patch:op('updateConceptTerm','내부 용어 수정 · 이전 이름은 별칭으로 보존','TermInput')},
       '/entries/{id}':{parameters:idParam,delete:op('deleteEntry','기록 삭제 및 관련 요약 무효화'),patch:op('updateEntry','기록 수정 · 연결 개념의 요약 재등록','EntryUpdate')},
+      '/concepts/{id}/peers':{parameters:idParam,post:op('addPeerConcept','같은 층위 개념 추가 · 공통 상위 연결','PeerInput',201)},
       '/concepts/{id}/notes':{parameters:idParam,patch:op('savePersonalNotes','노드별 내 정리 저장','NotesInput')},
       '/comparisons':{get:op('listComparisons','내 비교표 목록'),post:op('createComparison','비교표 저장','ComparisonInput',201)},
       '/comparisons/{id}':{parameters:idParam,get:op('getComparison','비교표 조회'),patch:op('updateComparison','비교표 수정','ComparisonInput'),delete:op('deleteComparison','비교표 삭제')},

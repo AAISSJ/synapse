@@ -100,3 +100,8 @@ export const images = sqliteTable('images', {
  objectKey:text('object_key').notNull(),filename:text('filename').notNull(),mime:text('mime').notNull(),
  size:integer('size').notNull(),createdAt:text('created_at').notNull(),
 },t=>[index('images_user_idx').on(t.userId)]);
+
+export const peerAdditions=sqliteTable('peer_additions',{
+ userId:text('user_id').notNull().references(()=>users.id),clientKey:text('client_key').notNull(),
+ requestBody:text('request_body').notNull(),result:text('result').notNull(),createdAt:text('created_at').notNull(),
+},t=>[primaryKey({columns:[t.userId,t.clientKey]})]);
