@@ -799,3 +799,8 @@ button.term-title:hover { color: #326728; text-decoration: underline; }
 .graph-canvas.placement-mode .graph-node { cursor:grab; }
 .graph-canvas.is-dragging .graph-node { cursor:grabbing; }
 @media(max-width:700px){.graph-bottom .canvas-legend{display:none}.zoom-controls{justify-content:center;margin-left:auto;margin-right:auto}.graph-bottom{left:8px;right:8px;bottom:12px}}
+.attached-image{display:block;margin:12px 0;width:fit-content;max-width:100%;border-radius:8px;overflow:hidden;border:1px solid #dfe6d6;background:#f6f8f2}
+.markdown .attached-image img,.attached-image img{display:block;max-width:100%;max-height:520px;width:auto;height:auto;object-fit:contain}
+.editor-image-list{display:flex;flex-wrap:wrap;gap:8px;padding:8px 12px}.editor-image-list .attached-image{margin:0}.editor-image-list img{max-height:100px;max-width:160px}
+.image-drop-active{outline:2px dashed #548267;outline-offset:3px;background:#edf5e8}.image-upload-status{padding:4px 12px;font-size:12px;color:#41632e}.markdown-editor>.form-error{padding:4px 12px}
+.markdown-toolbar{flex-wrap:wrap}.markdown-toolbar button:disabled{opacity:.45;cursor:default}

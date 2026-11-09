@@ -57,6 +57,13 @@
       "when": 1793523522459,
       "tag": "0007_rare_cloak",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1794189356745,
+      "tag": "0008_goofy_blazing_skull",
+      "breakpoints": true
     }
   ]
 }

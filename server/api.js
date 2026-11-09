@@ -1,3 +1,4 @@
+import {routeImages} from './images.js';
 import {routeWorkflows} from './workflows.js';
 import {trashStatement,conceptSnapshot} from './trash.js';
 import {routeComparisons,comparisonData} from './comparisons.js';
@@ -278,6 +279,7 @@ export async function handleApi(request, env) {
     if (!env.DB) fail(503,'storage_unavailable','저장소 연결이 아직 준비되지 않았습니다.');
     const db = env.DB;
     const user = await authenticate(request, db);
+    const imageResponse=await routeImages(request,env,user,path,method,{fail,response});if(imageResponse)return imageResponse;
     const workflowResponse=await routeWorkflows(request,db,user,path,method,readBody,{loadData,createEntry,revisionStatements});if(workflowResponse)return workflowResponse;
     const comparisonResponse=await routeComparisons(request,db,user,path,method,readBody);if(comparisonResponse)return comparisonResponse;
     const agentResponse=await routeAgent(request,db,user,path,method,readBody);
@@ -498,6 +500,8 @@ function openapi(origin) {
       '/jobs/claim':{post:op('claimJob','Codex 작업을 15분 동안 임대','JobClaimInput')},
       '/jobs/{id}/complete':{parameters:idParam,post:op('completeJob','근거가 포함된 요약 제출','JobCompleteInput')},
       '/jobs/{id}/fail':{parameters:idParam,post:op('failJob','작업 실패 보고. 최대 3회까지 재시도','JobFailInput')},
+      '/images':{post:{operationId:'uploadImage',summary:'이미지 첨부 · 최대 5MB',requestBody:{required:true,content:Object.fromEntries(['image/png','image/jpeg','image/webp','image/gif'].map(type=>[type,{schema:{type:'string',format:'binary'}}]))},responses:{201:{description:'첨부한 이미지와 Markdown URL'}}}},
+      '/images/{id}':{parameters:idParam,get:{operationId:'getImage',summary:'내 이미지 조회',responses:{200:{description:'이미지 파일'}}},delete:op('deleteImage','내 이미지 삭제')},
       '/export':{get:op('exportKnowledge','전체 지도와 원본 기록 JSON 내보내기')},
     },
   };

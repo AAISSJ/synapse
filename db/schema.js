@@ -94,3 +94,9 @@ export const reviewProgress=sqliteTable('review_progress',{
 export const mutationChecks=sqliteTable('mutation_checks',{
  id:text('id').primaryKey(),valid:integer('valid').notNull(),
 },t=>[check('mutation_valid',sql`${t.valid}=1`)]);
+
+export const images = sqliteTable('images', {
+ id:text('id').primaryKey(),userId:text('user_id').notNull().references(()=>users.id),
+ objectKey:text('object_key').notNull(),filename:text('filename').notNull(),mime:text('mime').notNull(),
+ size:integer('size').notNull(),createdAt:text('created_at').notNull(),
+},t=>[index('images_user_idx').on(t.userId)]);

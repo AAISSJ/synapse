@@ -1,9 +1,11 @@
+import {LocalBucket} from './local-bucket.mjs';
 import { createServer } from 'node:http';
 import { mkdirSync } from 'node:fs';
 import { SQLiteD1 } from '../tests/d1.mjs';
 import worker from '../dist/server/index.js';
 mkdirSync('.sites-runtime',{recursive:true});
 const DB = new SQLiteD1('.sites-runtime/dev.sqlite').migrate();
+const BUCKET=new LocalBucket('.sites-runtime/images');
 const server=createServer(async(req,res)=>{
   try {
     const url = new URL(req.url, 'http://127.0.0.1:4173');
@@ -14,7 +16,7 @@ const server=createServer(async(req,res)=>{
     const chunks=[];for await(const chunk of req)chunks.push(chunk);
     const body=Buffer.concat(chunks);
     const request=new Request(url,{method:req.method,headers,...(['GET','HEAD'].includes(req.method)?{}:{body})});
-    const response=await worker.fetch(request,{DB},{});
+    const response=await worker.fetch(request,{DB,BUCKET},{});
     res.writeHead(response.status,Object.fromEntries(response.headers));
     res.end(Buffer.from(await response.arrayBuffer()));
   }catch(error){console.error(error);res.writeHead(500);res.end('Local preview error');}
