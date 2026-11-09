@@ -1,3 +1,4 @@
+import {exportBackup} from './backup.js';
 import {routePeers} from './peers.js';
 import {routeImages} from './images.js';
 import {routeWorkflows} from './workflows.js';
@@ -288,6 +289,7 @@ export async function handleApi(request, env) {
     if(agentResponse)return agentResponse;
     if(path==='/search'&&method==='GET'){const q=url.searchParams.get('q')||'';if(q.length>200)fail(400,'invalid_query','검색어는 200자 이내로 입력해주세요.');const data=await loadData(db,user);return response({results:searchKnowledge(data.concepts,q,100,{entries:data.entries,comparisons:data.comparisons,inbox:data.inbox})});}
     if (path === '/bootstrap' && method === 'GET') return response(await loadData(db,user));
+    if(path==='/backup'&&method==='GET')return response(await exportBackup(db,user,await loadData(db,user)),200,{'Content-Disposition':'attachment; filename="synapse-content-backup.json"'});
     if (path === '/export' && method === 'GET') return response({format:'atlas-knowledge-export',version:1,exported_at:now(),...await loadData(db,user)},200,{'Content-Disposition':'attachment; filename="synapse-knowledge.json"'});
     if (path === '/settings' && method === 'GET') return response({tokens:await all(db,'SELECT id,name,prefix,created_at FROM api_tokens WHERE user_id=? ORDER BY created_at DESC',user.id),worker:{engine:'codex-sdk',requires_companion:true,lease_minutes:15}});
     if (path === '/tokens' && method === 'POST') {
@@ -506,6 +508,7 @@ function openapi(origin) {
       '/jobs/{id}/fail':{parameters:idParam,post:op('failJob','작업 실패 보고. 최대 3회까지 재시도','JobFailInput')},
       '/images':{post:{operationId:'uploadImage',summary:'이미지 첨부 · 최대 5MB',requestBody:{required:true,content:Object.fromEntries(['image/png','image/jpeg','image/webp','image/gif'].map(type=>[type,{schema:{type:'string',format:'binary'}}]))},responses:{201:{description:'첨부한 이미지와 Markdown URL'}}}},
       '/images/{id}':{parameters:idParam,get:{operationId:'getImage',summary:'내 이미지 조회',responses:{200:{description:'이미지 파일'}}},delete:op('deleteImage','내 이미지 삭제')},
+      '/backup':{get:op('backupKnowledge','전체 지식·휴지통·이미지 목록 백업 · 인증 정보 제외')},
       '/export':{get:op('exportKnowledge','전체 지도와 원본 기록 JSON 내보내기')},
     },
   };
